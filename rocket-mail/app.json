@@ -11,5 +11,6 @@
     "name": "Rocket Mail",
     "nameSlug": "rocket-mail",
     "classFile": "RocketMailApp.ts",
-    "description": "Natural Language Bridge to Legacy Email"
+    "description": "Natural Language Bridge to Legacy Email",
+    "implements": []
 }
