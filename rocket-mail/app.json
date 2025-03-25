@@ -1,0 +1,15 @@
+{
+    "id": "584d7ed8-47f6-421e-af2c-4ce26ec71f12",
+    "version": "0.0.1",
+    "requiredApiVersion": "^1.44.0",
+    "iconFile": "icon.png",
+    "author": {
+        "name": "Priyanshu Harshbodhi",
+        "homepage": "https://github.com/priyanshuharshbodhi1",
+        "support": "https://github.com/priyanshuharshbodhi1"
+    },
+    "name": "Rocket Mail",
+    "nameSlug": "rocket-mail",
+    "classFile": "RocketMailApp.ts",
+    "description": "Natural Language Bridge to Legacy Email"
+}
