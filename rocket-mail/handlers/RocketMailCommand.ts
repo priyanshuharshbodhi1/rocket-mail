@@ -15,6 +15,7 @@ import {
     RocketChatAssociationModel,
     RocketChatAssociationRecord,
 } from "@rocket.chat/apps-engine/definition/metadata";
+import { EmailTaskHandler } from "./EmailTaskHandler";
 
 interface IEmailContact {
     name: string;
@@ -161,7 +162,10 @@ export class RocketMailCommand implements ISlashCommand {
                     args,
                     sender,
                     room,
-                    modify
+                    modify,
+                    http,
+                    persistence,
+                    read
                 );
                 break;
         }
@@ -186,6 +190,27 @@ export class RocketMailCommand implements ISlashCommand {
             );
             await modify.getCreator().finish(messageBuilder);
 
+            // Try using OAuth first
+            const emailTaskHandler = new EmailTaskHandler(
+                this.app,
+                http,
+                this.app.getPersistence(),
+                read,
+                this.app.getLogger()
+            );
+
+            const result = await emailTaskHandler.processTask(
+                sender.id,
+                "get my last email"
+            );
+
+            if (result.success) {
+                messageBuilder.setText(result.message);
+                await modify.getCreator().finish(messageBuilder);
+                return;
+            }
+
+            // Fall back to legacy method if OAuth is not set up
             const settings = await getEmailSettings(
                 read.getEnvironmentReader().getSettings()
             );
@@ -202,27 +227,26 @@ export class RocketMailCommand implements ISlashCommand {
                 .getCreator()
                 .startMessage()
                 .setSender(sender)
-                .setRoom(room).setText(`
-                **Last Received Email**
-                **From:** ${email.from}
-                **Subject:** ${email.subject}
-                **Date:** ${email.date}
+                .setRoom(room);
 
-                ${email.content}
-                `);
+            emailMessage.setText(
+                `**Last Email**
+                
+From: ${email.from}
+Subject: ${email.subject}
+Date: ${email.date}
+
+${email.content}`
+            );
 
             await modify.getCreator().finish(emailMessage);
         } catch (error) {
-            this.app.getLogger().error("Error retrieving email:", error);
+            this.app.getLogger().error("Error retrieving last email:", error);
 
-            const errorMessage = modify
-                .getCreator()
-                .startMessage()
-                .setSender(sender)
-                .setRoom(room)
-                .setText(`Error retrieving email: ${error.message}`);
-
-            await modify.getCreator().finish(errorMessage);
+            messageBuilder.setText(
+                `Error retrieving last email: ${error.message}`
+            );
+            await modify.getCreator().finish(messageBuilder);
         }
     }
 
@@ -475,7 +499,10 @@ export class RocketMailCommand implements ISlashCommand {
         args: Array<string>,
         sender,
         room,
-        modify
+        modify,
+        http,
+        persistence,
+        read: IRead
     ): Promise<void> {
         const fullTask = [task, ...args].join(" ");
 
@@ -483,12 +510,46 @@ export class RocketMailCommand implements ISlashCommand {
             .getCreator()
             .startMessage()
             .setSender(sender)
-            .setRoom(room)
-            .setText(
-                `Processing task: "${fullTask}"\n\nThis functionality will be implemented to use an LLM to process email-related tasks.`
+            .setRoom(room);
+
+        messageBuilder.setText(
+            `Processing task: "${fullTask}"\n\nPlease wait while I analyze your request...`
+        );
+        await modify.getCreator().finish(messageBuilder);
+
+        try {
+            const emailTaskHandler = new EmailTaskHandler(
+                this.app,
+                http,
+                persistence,
+                read,
+                this.app.getLogger()
             );
 
-        await modify.getCreator().finish(messageBuilder);
+            const result = await emailTaskHandler.processTask(sender.id, fullTask);
+
+            const responseBuilder = modify
+                .getCreator()
+                .startMessage()
+                .setSender(sender)
+                .setRoom(room);
+
+            responseBuilder.setText(result.message);
+            await modify.getCreator().finish(responseBuilder);
+        } catch (error) {
+            this.app.getLogger().error("Error processing LLM task:", error);
+
+            const errorBuilder = modify
+                .getCreator()
+                .startMessage()
+                .setSender(sender)
+                .setRoom(room);
+
+            errorBuilder.setText(
+                `Error processing your request: ${error.message}\n\nPlease try again or use /rocket-mail help to see available commands.`
+            );
+            await modify.getCreator().finish(errorBuilder);
+        }
     }
 
     private async sendHelpMessage(sender, room, modify): Promise<void> {
@@ -497,14 +558,23 @@ export class RocketMailCommand implements ISlashCommand {
 
             Here are the available commands:
 
-            1. \`/rocket-mail <task>\` - Uses AI to process email-related tasks (e.g., "/rocket-mail How many emails came into my inbox last Saturday").
+            1. \`/rocket-mail <task>\` - Uses AI to process email-related tasks (e.g., "/rocket-mail Search for emails from john@example.com").
             2. \`/rocket-mail lastEmail\` - Shows the last received email.
-            3. \`/rocket-mail sendEmail <recipient> <subject> <message>\` - Sends an email to the specified recipient.
-            4. \`/rocket-mail add <name> <email>\` - Adds/Updates a contact to your email list.
-            5. \`/rocket-mail delete <name>\` - Deletes a contact from your email list.
-            6. \`/rocket-mail list\` - Shows all your saved contacts/email list.
-            7. \`/rocket-mail help\` - Shows the help message.
-            `;
+            3. \`/rocket-mail sendEmail <to> <subject> <body>\` - Sends an email.
+            4. \`/rocket-mail add <name> <email>\` - Adds or updates a contact.
+            5. \`/rocket-mail delete <name>\` - Deletes a contact.
+            6. \`/rocket-mail list\` - Lists all saved contacts.
+
+            You can also use the following auth commands provided separately:
+            1. \`/auth login\` - Authenticate with Gmail using OAuth.
+            2. \`/auth logout\` - Log out from your Gmail account.
+
+            For email tasks, you can ask things like:
+            - Search for emails from [sender]
+            - Find emails with subject containing [keyword]
+            - Count emails from [sender] between [date] and [date]
+            - Send an email to [recipient] about [subject]
+        `;
 
         const messageBuilder = modify
             .getCreator()

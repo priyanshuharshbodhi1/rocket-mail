@@ -16,6 +16,7 @@ import { SendEmailCommand } from "../commands/SendEmailCommand";
 import { LastEmailCommand } from "../commands/LastEmailCommand";
 import { HelpCommand } from "../commands/HelpCommand";
 import { ContactService } from "../services/ContactService";
+import { LLMTaskHandler } from "../services/LLMTaskHandler";
 
 export class CommandHandler implements ISlashCommand {
     public command = "rocket-mail";
@@ -74,21 +75,71 @@ export class CommandHandler implements ISlashCommand {
                 await new HelpCommand().execute(sender, room, modify);
                 break;
             default:
-                await this.handleLLMTask(subcommand, args, sender, room, modify);
+                await this.handleLLMTask(subcommand, args, sender, room, read, modify, http, persistence);
                 break;
         }
     }
 
-    private async handleLLMTask(task: string, args: Array<string>, sender, room, modify): Promise<void> {
+    private async handleLLMTask(
+        task: string, 
+        args: Array<string>, 
+        sender, 
+        room, 
+        read: IRead,
+        modify: IModify,
+        http: IHttp,
+        persistence: IPersistence
+    ): Promise<void> {
         const fullTask = [task, ...args].join(' ');
 
-        const messageBuilder = modify
+        // Show processing message
+        const processingMessage = modify
             .getCreator()
             .startMessage()
             .setSender(sender)
             .setRoom(room)
-            .setText(`Processing task: "${fullTask}"\n\nThis functionality will be implemented to use an LLM to process email-related tasks.`);
+            .setText(`Processing your email task: "${fullTask}"\nPlease wait...`);
 
-        await modify.getCreator().finish(messageBuilder);
+        await modify.getCreator().finish(processingMessage);
+
+        try {
+            // Initialize the LLM task handler
+            const llmTaskHandler = new LLMTaskHandler(
+                read,
+                http,
+                modify,
+                persistence,
+                this.contactService,
+                this.app.getLogger()
+            );
+
+            // Process the task
+            const result = await llmTaskHandler.processTask(fullTask, sender);
+
+            // Send the result message
+            const resultMessage = modify
+                .getCreator()
+                .startMessage()
+                .setSender(sender)
+                .setRoom(room)
+                .setText(result.success
+                    ? result.message
+                    : `❌ ${result.message}`
+                );
+
+            await modify.getCreator().finish(resultMessage);
+        } catch (error) {
+            // Handle any unexpected errors
+            this.app.getLogger().error('Error in LLM task handler:', error);
+            
+            const errorMessage = modify
+                .getCreator()
+                .startMessage()
+                .setSender(sender)
+                .setRoom(room)
+                .setText(`❌ An unexpected error occurred: ${error.message}\n\nPlease try again later.`);
+
+            await modify.getCreator().finish(errorMessage);
+        }
     }
 }
