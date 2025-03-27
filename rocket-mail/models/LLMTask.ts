@@ -47,5 +47,6 @@ export enum LLMEmailActionType {
     COUNT_EMAILS = 'count-emails',
     VIEW_EMAIL = 'view-email',
     SEND_EMAIL = 'send-email',
+    SUMMARIZE = 'summarize',
     UNKNOWN = 'unknown'
 }

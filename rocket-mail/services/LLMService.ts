@@ -159,6 +159,49 @@ EXTREMELY IMPORTANT:
     }
     
     /**
+     * Make a direct call to the LLM with a custom prompt
+     * @param prompt The prompt to send to the LLM
+     * @returns The LLM's response
+     */
+    public async callLLM(prompt: string): Promise<string> {
+        this.logger.debug(`LLMService.callLLM -> Processing prompt`);
+        
+        try {
+            const response = await this.http.post(this.apiUrl, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.apiKey}`
+                },
+                data: {
+                    input: prompt,
+                    temperature: 0.3,
+                    max_tokens: 1500
+                }
+            });
+            
+            if (response.statusCode !== 200) {
+                const errorContent = typeof response.content === 'string' ? response.content : 'No content returned';
+                this.logger.error(`LLMService.callLLM -> Error: ${errorContent}`);
+                throw new Error(`LLM API returned status ${response.statusCode}`);
+            }
+            
+            if (!response.content) {
+                throw new Error('Empty response from LLM API');
+            }
+            
+            const data = JSON.parse(response.content);
+            if (!data.output) {
+                throw new Error('Invalid response from LLM API');
+            }
+            
+            return data.output.trim();
+        } catch (error) {
+            this.logger.error(`LLMService.callLLM -> Error: ${error.message}`);
+            throw new Error(`Failed to get response from LLM: ${error.message}`);
+        }
+    }
+
+    /**
      * Format the task result using LLM
      */
     public async formatTaskResult(result: any, actionType: LLMEmailActionType): Promise<string> {

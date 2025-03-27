@@ -15,6 +15,7 @@ import { ListCommand } from "../commands/ListCommand";
 import { SendEmailCommand } from "../commands/SendEmailCommand";
 import { LastEmailCommand } from "../commands/LastEmailCommand";
 import { HelpCommand } from "../commands/HelpCommand";
+import { SummarizeCommand } from "../commands/SummarizeCommand";
 import { ContactService } from "../services/ContactService";
 import { LLMTaskHandler } from "../services/LLMTaskHandler";
 
@@ -54,6 +55,11 @@ export class CommandHandler implements ISlashCommand {
             case 'lastemail':
                 await new LastEmailCommand(this.app).execute(
                     sender, room, read, modify, http
+                );
+                break;
+            case 'summarize':
+                await new SummarizeCommand(this.app).execute(
+                    args, sender, room, read, modify, http, persistence
                 );
                 break;
             case 'add':

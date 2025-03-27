@@ -10,10 +10,13 @@ export class HelpCommand {
             1. \`/rocket-mail <task>\` - Uses AI to process email-related tasks (e.g., "/rocket-mail How many emails came into my inbox last Saturday").
             2. \`/rocket-mail lastEmail\` - Shows the last received email.
             3. \`/rocket-mail sendEmail <recipient> <subject> <message>\` - Sends an email to the specified recipient.
-            4. \`/rocket-mail add <name> <email>\` - Adds/Updates a contact to your email list.
-            5. \`/rocket-mail delete <name>\` - Deletes a contact from your email list.
-            6. \`/rocket-mail list\` - Shows all your saved contacts/email list.
-            7. \`/rocket-mail help\` - Shows the help message.
+            4. \`/rocket-mail summarize\` - Summarizes conversation messages and creates an email format.
+               - Optional parameters: \`--days <number>\` or \`-d <number>\` to specify time frame (default: 1 day)
+               - Optional parameters: \`--to <email>\` or \`-t <email>\` to specify recipient
+            5. \`/rocket-mail add <name> <email>\` - Adds/Updates a contact to your email list.
+            6. \`/rocket-mail delete <name>\` - Deletes a contact from your email list.
+            7. \`/rocket-mail list\` - Shows all your saved contacts/email list.
+            8. \`/rocket-mail help\` - Shows the help message.
             `;
 
         const messageBuilder = modify
