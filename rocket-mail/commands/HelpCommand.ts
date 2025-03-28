@@ -15,6 +15,7 @@ export class HelpCommand {
             * \`/rocket-mail search [subject:Subject] [from:Sender] [body:Text] [since:YYYY-MM-DD] [until:YYYY-MM-DD] [limit:Number]\` - Search emails
             * \`/rocket-mail view <email_id>\` - View a specific email by ID
             * \`/rocket-mail count [from:Sender] [since:YYYY-MM-DD] [until:YYYY-MM-DD]\` - Count emails by date range
+            * \`/rocket-mail report <number_of_days>\` - Generate comprehensive email report for the specified days
 
             **Contact Management:**
             * \`/rocket-mail add <name> <email>\` - Add or update a contact to your email list

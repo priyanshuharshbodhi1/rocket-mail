@@ -37,18 +37,8 @@ export class EmailServiceFactory {
                     // Generate authorization URL
                     const authUrl = await oauthService.getAuthorizationUrl(userId);
                     
-                    // Attempt to open browser window (will work in some environments)
-                    try {
-                        const { UI } = require('@rocket.chat/apps-engine/definition/accessors');
-                        // We can't easily get the modifier from IRead, so we'll just show the link
-                        logger.debug('No easy way to open browser window from factory, falling back to URL in message');
-                    } catch (uiError) {
-                        // If UI method fails, fallback to regular link
-                        logger.debug('Failed to automatically open browser window:', uiError);
-                    }
-
-                    // If we couldn't open a window or the above failed, return URL in the error
-                    throw new Error(`You need to authenticate with Gmail first. Please use /rocket-mail login command or click this link: ${authUrl}`);
+                    // Simply provide a link for authentication
+                    throw new Error(`You need to authenticate with Gmail first. Use /rocket-mail login command or [Click here to Login](${authUrl})`);
                 } catch (error) {
                     // Handle any errors in generating the authentication URL
                     if (error.message.includes('authenticate with Gmail first')) {

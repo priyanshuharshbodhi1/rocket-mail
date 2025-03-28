@@ -97,22 +97,9 @@ export class LoginCommand implements ISlashCommand {
             // Generate the authorization URL
             const authUrl = await oauthService.getAuthorizationUrl(userId);
             
-            // Send message with auth URL as fallback
-            messageBuilder.setText(`🔐 Connect your Gmail account: [Click here to authenticate with Google](${authUrl})\n\nA browser window should have opened to complete authentication. If not, please click the link above.`);
+            // Send message with auth URL as a clickable link
+            messageBuilder.setText(`🔐 Connect your Gmail account: [Click here to Login](${authUrl})`);
             await modify.getCreator().finish(messageBuilder);
-            
-            // Try to open the authorization URL directly (this doesn't work in all Rocket.Chat environments)
-            try {
-                // This is a best-effort attempt to open the URL
-                const { UI } = require('@rocket.chat/apps-engine/definition/accessors');
-                const ui = modify as any;
-                if (ui.getUiController && typeof ui.getUiController().openExternalWindow === 'function') {
-                    await ui.getUiController().openExternalWindow(authUrl, userId);
-                }
-            } catch (uiError) {
-                // Silently ignore UI errors - the user can still use the link in the message
-                this.app.getLogger().debug('Unable to open browser window automatically:', uiError);
-            }
         } catch (error) {
             messageBuilder.setText(`❌ Error generating authentication URL: ${error.message}`);
             await modify.getCreator().finish(messageBuilder);

@@ -23,6 +23,7 @@ import { ContactService } from "../services/ContactService";
 import { LLMTaskHandler } from "../services/LLMTaskHandler";
 import { LoginCommand } from "../commands/LoginCommand";
 import { LogoutCommand } from "../commands/LogoutCommand";
+import { ReportCommand } from "../commands/ReportCommand";
 
 export class CommandHandler implements ISlashCommand {
     public command = "rocket-mail";
@@ -107,6 +108,11 @@ export class CommandHandler implements ISlashCommand {
                 break;
             case 'count':
                 await new CountEmailCommand(this.app).execute(
+                    args, sender, room, read, modify, http, persistence
+                );
+                break;
+            case 'report':
+                await new ReportCommand(this.app).execute(
                     args, sender, room, read, modify, http, persistence
                 );
                 break;
