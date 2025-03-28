@@ -1,17 +1,18 @@
 import {
     IHttp,
-    IModify, 
+    IModify,
     IRead,
-    IPersistence
+    IPersistence,
 } from "@rocket.chat/apps-engine/definition/accessors";
 import { getEmailSettings } from "../config/SettingsManager";
 import { RocketMailApp } from "../RocketMailApp";
 import { EmailServiceFactory } from "../services/EmailServiceFactory";
 
-export class LastEmailCommand {
+export class ViewEmailCommand {
     constructor(private readonly app: RocketMailApp) {}
 
     public async execute(
+        args: Array<string>,
         sender,
         room,
         read: IRead,
@@ -25,7 +26,17 @@ export class LastEmailCommand {
             .setSender(sender)
             .setRoom(room);
 
-        messageBuilder.setText("Retrieving your last email. Please wait...");
+        if (args.length !== 1) {
+            messageBuilder.setText(
+                "Usage: /rocket-mail view <email_id>"
+            );
+            await modify.getCreator().finish(messageBuilder);
+            return;
+        }
+
+        const emailId = args[0];
+        
+        messageBuilder.setText(`🔍 Retrieving email. Please wait...`);
         await modify.getCreator().finish(messageBuilder);
 
         try {
@@ -34,7 +45,7 @@ export class LastEmailCommand {
             );
             
             try {
-                // Use the factory to create the appropriate email service
+                // Create the appropriate email service
                 const emailService = await EmailServiceFactory.createEmailService(
                     settings,
                     sender.id,
@@ -44,9 +55,9 @@ export class LastEmailCommand {
                     persistence
                 );
 
-                // Get the last email
-                const lastEmail = await emailService.getLastReceivedEmail();
-
+                // Get the email by ID
+                const email = await emailService.getEmailById(emailId);
+                
                 const resultMessageBuilder = modify
                     .getCreator()
                     .startMessage()
@@ -54,12 +65,13 @@ export class LastEmailCommand {
                     .setRoom(room);
 
                 resultMessageBuilder.setText(
-                    `📧 **Last Email**\n\n` +
-                    `**From**: ${lastEmail.from}\n` +
-                    `**Date**: ${lastEmail.date}\n` +
-                    `**Subject**: ${lastEmail.subject}\n\n` +
-                    `**Content**:\n${lastEmail.content?.substring(0, 1000)}${
-                        lastEmail.content?.length > 1000 ? "..." : ""
+                    `📧 **Email Details**\n\n` +
+                    `**From**: ${email.from}\n` +
+                    `**To**: ${email.to}\n` +
+                    `**Date**: ${email.date}\n` +
+                    `**Subject**: ${email.subject}\n\n` +
+                    `**Content**:\n${email.content?.substring(0, 2000)}${
+                        email.content?.length > 2000 ? "..." : ""
                     }`
                 );
                 
@@ -80,7 +92,7 @@ export class LastEmailCommand {
                 }
             }
         } catch (error) {
-            this.app.getLogger().error("Error retrieving email:", error);
+            this.app.getLogger().error(`Error viewing email: ${error}`);
             
             const errorMessage = modify
                 .getCreator()
@@ -88,7 +100,7 @@ export class LastEmailCommand {
                 .setSender(sender)
                 .setRoom(room);
             
-            errorMessage.setText(`❌ Error retrieving email: ${error.message}`);
+            errorMessage.setText(`❌ Error viewing email: ${error.message}`);
             await modify.getCreator().finish(errorMessage);
         }
     }

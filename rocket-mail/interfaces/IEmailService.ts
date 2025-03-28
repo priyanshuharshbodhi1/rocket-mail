@@ -1,9 +1,8 @@
+import { EmailProviders } from '../config/Settings';
+
 export interface IEmailSettings {
     email: string;
-    password: string;
-    imapServer: string;
-    smtpServer: string;
-    smtpPort: number;
+    provider: EmailProviders;
 }
 
 export interface IEmailContent {

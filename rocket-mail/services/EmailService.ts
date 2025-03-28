@@ -7,6 +7,7 @@ import {
     IEmailDetails,
 } from "../interfaces/IEmailService";
 import { IEmailSearchParams, IEmailCountParams } from "../models/LLMTask";
+import { EmailProviders } from "../config/Settings";
 
 export class EmailService {
     private settings: IEmailSettings;
@@ -20,40 +21,16 @@ export class EmailService {
     }
 
     /**
-     * Send an email using SMTP
+     * Send an email
+     * This method is now a placeholder for backwards compatibility.
+     * Actual email sending should be done through provider-specific services
+     * like GmailService that use OAuth.
      */
     public async sendEmail(emailContent: IEmailContent): Promise<boolean> {
         this.logger.debug("EmailService.sendEmail -> Preparing to send email");
 
         try {
-            // Use a proxy service to send SMTP emails since we can't use direct TCP/SMTP from App Engine
-            const response = await this.http.post('https://youremailproxy.com/smtp/send', {
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                data: {
-                    auth: {
-                        user: this.settings.email,
-                        pass: this.settings.password,
-                        host: this.settings.smtpServer,
-                        port: this.settings.smtpPort,
-                    },
-                    email: {
-                        from: emailContent.from,
-                        to: emailContent.to,
-                        subject: emailContent.subject,
-                        text: emailContent.text,
-                        html: emailContent.html,
-                    }
-                },
-            });
-
-            if (response.statusCode === 200) {
-                this.logger.debug('EmailService.sendEmail -> Email sent successfully');
-                return true;
-            } else {
-                throw new Error(`Failed to send email. Status code: ${response.statusCode}`);
-            }
+            throw new Error(`Direct SMTP sending is no longer supported. Please use ${this.settings.provider} OAuth authentication to send emails.`);
         } catch (error) {
             this.logger.error(
                 `EmailService.sendEmail -> Error sending email: ${error}`
@@ -82,7 +59,8 @@ export class EmailService {
     }
 
     /**
-     * Get the most recent email from the inbox using IMAP
+     * Get the most recent email from the inbox
+     * This method is now a placeholder for backwards compatibility.
      */
     public async getLastReceivedEmail(): Promise<IEmailDetails> {
         this.logger.debug(
@@ -90,37 +68,7 @@ export class EmailService {
         );
 
         try {
-            // Use a proxy service for IMAP operations
-            const response = await this.http.post('https://youremailproxy.com/imap/getLatest', {
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                data: {
-                    auth: {
-                        user: this.settings.email,
-                        pass: this.settings.password,
-                        host: this.settings.imapServer,
-                        port: 993, // Standard IMAP SSL port
-                    },
-                    options: {
-                        mailbox: 'INBOX'
-                    }
-                },
-            });
-
-            if (response.statusCode === 200) {
-                const data = response.data;
-                return {
-                    id: data.id,
-                    from: data.from,
-                    to: data.to,
-                    date: data.date,
-                    subject: data.subject,
-                    content: data.content
-                };
-            } else {
-                throw new Error(`Failed to get latest email. Status code: ${response.statusCode}`);
-            }
+            throw new Error(`Direct IMAP access is no longer supported. Please use ${this.settings.provider} OAuth authentication to access emails.`);
         } catch (error) {
             this.logger.error(
                 `EmailService.getLastReceivedEmail -> Error retrieving last email: ${error}`
@@ -131,44 +79,13 @@ export class EmailService {
 
     /**
      * Search emails based on criteria
+     * This method is now a placeholder for backwards compatibility.
      */
     public async searchEmails(params: IEmailSearchParams): Promise<IEmailSummary[]> {
         this.logger.debug("EmailService.searchEmails -> Searching emails with params:", params);
 
         try {
-            const response = await this.http.post('https://youremailproxy.com/imap/search', {
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                data: {
-                    auth: {
-                        user: this.settings.email,
-                        pass: this.settings.password,
-                        host: this.settings.imapServer,
-                        port: 993,
-                    },
-                    search: {
-                        startDate: params.startDate,
-                        endDate: params.endDate,
-                        sender: params.sender,
-                        subject: params.subject,
-                        body: params.body,
-                        folder: params.folder || 'INBOX',
-                        limit: params.limit || 20
-                    }
-                },
-            });
-
-            if (response.statusCode === 200) {
-                return response.data.emails.map((email: any) => ({
-                    id: email.id,
-                    from: email.from,
-                    date: email.date,
-                    subject: email.subject
-                }));
-            } else {
-                throw new Error(`Failed to search emails. Status code: ${response.statusCode}`);
-            }
+            throw new Error(`Direct IMAP access is no longer supported. Please use ${this.settings.provider} OAuth authentication to search emails.`);
         } catch (error) {
             this.logger.error(`EmailService.searchEmails -> Error searching emails: ${error}`);
             throw new Error(`Failed to search emails: ${error}`);
@@ -177,35 +94,13 @@ export class EmailService {
 
     /**
      * Count emails by date range and optional criteria
+     * This method is now a placeholder for backwards compatibility.
      */
     public async countEmails(params: IEmailCountParams): Promise<Record<string, number>> {
         this.logger.debug("EmailService.countEmails -> Counting emails with params:", params);
 
         try {
-            const response = await this.http.post('https://youremailproxy.com/imap/count', {
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                data: {
-                    auth: {
-                        user: this.settings.email,
-                        pass: this.settings.password,
-                        host: this.settings.imapServer,
-                        port: 993,
-                    },
-                    search: {
-                        startDate: params.startDate,
-                        endDate: params.endDate,
-                        sender: params.sender,
-                    }
-                },
-            });
-
-            if (response.statusCode === 200) {
-                return response.data.counts;
-            } else {
-                throw new Error(`Failed to count emails. Status code: ${response.statusCode}`);
-            }
+            throw new Error(`Direct IMAP access is no longer supported. Please use ${this.settings.provider} OAuth authentication to count emails.`);
         } catch (error) {
             this.logger.error(`EmailService.countEmails -> Error counting emails: ${error}`);
             throw new Error(`Failed to count emails: ${error}`);
@@ -214,41 +109,13 @@ export class EmailService {
 
     /**
      * Get full content of a specific email by ID
+     * This method is now a placeholder for backwards compatibility.
      */
     public async getEmailById(emailId: string): Promise<IEmailDetails> {
         this.logger.debug(`EmailService.getEmailById -> Getting email with ID: ${emailId}`);
 
         try {
-            const response = await this.http.post('https://youremailproxy.com/imap/getMessage', {
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                data: {
-                    auth: {
-                        user: this.settings.email,
-                        pass: this.settings.password,
-                        host: this.settings.imapServer,
-                        port: 993,
-                    },
-                    options: {
-                        messageId: emailId
-                    }
-                },
-            });
-
-            if (response.statusCode === 200) {
-                const data = response.data;
-                return {
-                    id: data.id,
-                    from: data.from,
-                    to: data.to,
-                    date: data.date,
-                    subject: data.subject,
-                    content: data.content
-                };
-            } else {
-                throw new Error(`Failed to get email. Status code: ${response.statusCode}`);
-            }
+            throw new Error(`Direct IMAP access is no longer supported. Please use ${this.settings.provider} OAuth authentication to get email details.`);
         } catch (error) {
             this.logger.error(`EmailService.getEmailById -> Error retrieving email: ${error}`);
             throw new Error(`Failed to retrieve email: ${error}`);

@@ -1,22 +1,29 @@
-import { IModify } from "@rocket.chat/apps-engine/definition/accessors";
+import { IModify } from '@rocket.chat/apps-engine/definition/accessors';
 
 export class HelpCommand {
     public async execute(sender, room, modify: IModify): Promise<void> {
         const helpText = `
-            **RocketMail Commands**
+            **Rocket.Mail Commands:**
 
-            Here are the available commands:
+            **Authentication:**
+            * \`/rocket-mail login\` - Login to your email account
+            * \`/rocket-mail logout\` - Disconnect your email account
 
-            1. \`/rocket-mail <task>\` - Uses AI to process email-related tasks (e.g., "/rocket-mail How many emails came into my inbox last Saturday").
-            2. \`/rocket-mail lastEmail\` - Shows the last received email.
-            3. \`/rocket-mail sendEmail <recipient> <subject> <message>\` - Sends an email to the specified recipient.
-            4. \`/rocket-mail summarize\` - Summarizes conversation messages and creates an email format.
-               - Optional parameters: \`--days <number>\` or \`-d <number>\` to specify time frame (default: 1 day)
-               - Optional parameters: \`--to <email>\` or \`-t <email>\` to specify recipient
-            5. \`/rocket-mail add <name> <email>\` - Adds/Updates a contact to your email list.
-            6. \`/rocket-mail delete <name>\` - Deletes a contact from your email list.
-            7. \`/rocket-mail list\` - Shows all your saved contacts/email list.
-            8. \`/rocket-mail help\` - Shows the help message.
+            **Email Operations:**
+            * \`/rocket-mail sendemail <recipient> <subject> <message>\` - Send an email
+            * \`/rocket-mail lastemail\` - Display your last received email
+            * \`/rocket-mail search [subject:Subject] [from:Sender] [body:Text] [since:YYYY-MM-DD] [until:YYYY-MM-DD] [limit:Number]\` - Search emails
+            * \`/rocket-mail view <email_id>\` - View a specific email by ID
+            * \`/rocket-mail count [from:Sender] [since:YYYY-MM-DD] [until:YYYY-MM-DD]\` - Count emails by date range
+
+            **Contact Management:**
+            * \`/rocket-mail add <name> <email>\` - Add or update a contact to your email list
+            * \`/rocket-mail delete <name>\` - Delete a contact from your email list
+            * \`/rocket-mail list\` - Show all your saved contacts
+
+            **Utilities:**
+            * \`/rocket-mail summarize <text>\` - Summarize text using AI
+            * \`/rocket-mail help\` - Display this help message
             `;
 
         const messageBuilder = modify

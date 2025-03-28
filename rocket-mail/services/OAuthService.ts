@@ -38,8 +38,17 @@ export class OAuthService {
             this.clientId = await this.settings.get('oauth_client_id');
             this.clientSecret = await this.settings.get('oauth_client_secret');
             this.redirectUri = await this.settings.get('oauth_redirect_uri');
+            
+            if (!this.clientId || !this.clientSecret || !this.redirectUri) {
+                throw new Error('Missing required OAuth settings. Please configure the OAuth settings in the app configuration.');
+            }
+            
             this.initialized = true;
-            this.logger.debug('OAuthService initialized successfully');
+            this.logger.debug('OAuthService initialized successfully', {
+                clientIdConfigured: !!this.clientId,
+                clientSecretConfigured: !!this.clientSecret,
+                redirectUriConfigured: !!this.redirectUri
+            });
         } catch (error) {
             this.logger.error('Failed to initialize OAuthService:', error);
             throw new Error('Failed to initialize OAuthService: ' + error.message);
@@ -57,31 +66,43 @@ export class OAuthService {
     /**
      * Save the OAuth state for a user
      */
-    public async saveState(state: string, userId: string, roomId: string): Promise<void> {
+    public async saveState(state: string, userId: string): Promise<void> {
+        this.logger.debug(`OAuthService.saveState -> Saving state for user ${userId}`);
+        
         const association = new RocketChatAssociationRecord(
-            RocketChatAssociationModel.USER,
-            `${userId}:oauth:state`
+            RocketChatAssociationModel.MISC,
+            `oauth:state:${state}`
         );
 
         await this.persistence.updateByAssociation(
             association, 
-            { state, roomId, timestamp: new Date().getTime() },
+            { 
+                userId, 
+                timestamp: new Date().getTime() 
+            },
             true
         );
+        
+        this.logger.debug(`OAuthService.saveState -> State saved successfully for user ${userId}`);
     }
 
     /**
      * Generate OAuth authorization URL for the user
      */
     public async getAuthorizationUrl(userId: string): Promise<string> {
+        this.logger.debug(`OAuthService.getAuthorizationUrl -> Generating URL for user ${userId}`);
+        
         // Generate a state parameter for security
         const state = this.generateState();
         
         // Save the state for this user
-        await this.saveState(state, userId, 'direct');
+        await this.saveState(state, userId);
         
         // Get the authorization URL with the state parameter
-        return this.getAuthUrl(state);
+        const url = this.getAuthUrl(state);
+        
+        this.logger.debug(`OAuthService.getAuthorizationUrl -> URL generated for user ${userId}`);
+        return url;
     }
 
     /**
@@ -114,9 +135,18 @@ export class OAuthService {
      * Exchange authorization code for tokens
      */
     public async exchangeCodeForTokens(code: string): Promise<IOAuthCredentials> {
-        this.logger.debug('Exchanging code for tokens');
+        this.logger.debug('OAuthService.exchangeCodeForTokens -> Exchanging code for tokens');
 
         try {
+            if (!this.initialized) {
+                await this.initialize();
+            }
+            
+            this.logger.debug('OAuthService.exchangeCodeForTokens -> Making token request', {
+                clientIdLength: this.clientId.length,
+                redirectUri: this.redirectUri
+            });
+            
             const response = await this.http.post('https://oauth2.googleapis.com/token', {
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -125,13 +155,22 @@ export class OAuthService {
             });
 
             if (response.statusCode !== 200) {
-                throw new Error(`Failed to exchange code for tokens: ${response.content}`);
+                const errorContent = response.content || 'Unknown error';
+                this.logger.error(`OAuthService.exchangeCodeForTokens -> Failed with status ${response.statusCode}:`, errorContent);
+                throw new Error(`Failed to exchange code for tokens: HTTP ${response.statusCode}`);
             }
 
             const data = JSON.parse(response.content || '{}');
             
+            if (!data.access_token) {
+                this.logger.error('OAuthService.exchangeCodeForTokens -> No access token in response:', data);
+                throw new Error('No access token received from OAuth provider');
+            }
+            
             // Get user info to get email
             const userInfo = await this.getUserInfo(data.access_token);
+            
+            this.logger.debug('OAuthService.exchangeCodeForTokens -> Successfully obtained tokens');
 
             return {
                 access_token: data.access_token,
@@ -142,7 +181,7 @@ export class OAuthService {
                 email: userInfo.email
             };
         } catch (error) {
-            this.logger.error('Error exchanging code for tokens:', error);
+            this.logger.error('OAuthService.exchangeCodeForTokens -> Error:', error);
             throw new Error(`Failed to exchange code for tokens: ${error.message}`);
         }
     }
@@ -176,7 +215,7 @@ export class OAuthService {
 
             return JSON.parse(response.content || '{}');
         } catch (error) {
-            this.logger.error('Error getting user info:', error);
+            this.logger.error('OAuthService.getUserInfo -> Error:', error);
             throw new Error(`Failed to get user info: ${error.message}`);
         }
     }
@@ -184,20 +223,24 @@ export class OAuthService {
     /**
      * Get and validate the state
      */
-    public async validateState(state: string): Promise<{userId: string, roomId: string} | undefined> {
+    public async validateState(state: string): Promise<{userId: string} | undefined> {
+        this.logger.debug(`OAuthService.validateState -> Validating state: ${state}`);
+        
         const association = new RocketChatAssociationRecord(
             RocketChatAssociationModel.MISC,
             `oauth:state:${state}`
         );
 
-        const [result] = await this.read.getPersistenceReader().readByAssociation(association) as Array<{userId: string, roomId: string, timestamp: number}>;
+        const [result] = await this.read.getPersistenceReader().readByAssociation(association) as Array<{userId: string, timestamp: number}>;
         
         if (!result) {
+            this.logger.error(`OAuthService.validateState -> State not found: ${state}`);
             return undefined;
         }
 
         // Check if the state is not too old (10 minutes)
         if (Date.now() - result.timestamp > 10 * 60 * 1000) {
+            this.logger.error(`OAuthService.validateState -> State expired: ${state}`);
             await this.persistence.removeByAssociation(association);
             return undefined;
         }
@@ -205,9 +248,10 @@ export class OAuthService {
         // Clean up the used state
         await this.persistence.removeByAssociation(association);
         
+        this.logger.debug(`OAuthService.validateState -> State validated successfully for user: ${result.userId}`);
+        
         return {
-            userId: result.userId,
-            roomId: result.roomId
+            userId: result.userId
         };
     }
 
@@ -245,13 +289,13 @@ export class OAuthService {
             
             return true;
         } catch (error) {
-            this.logger.error('Error revoking token:', error);
+            this.logger.error('OAuthService.revokeToken -> Error:', error);
             
             // Still try to delete credentials even if token revocation failed
             try {
                 await this.deleteCredentials(userId);
             } catch (e) {
-                this.logger.error('Failed to delete credentials after token revocation error:', e);
+                this.logger.error('OAuthService.revokeToken -> Failed to delete credentials after revocation error:', e);
             }
             
             throw new Error(`Failed to revoke token: ${error.message}`);
@@ -262,9 +306,13 @@ export class OAuthService {
      * Refresh access token using refresh token
      */
     public async refreshAccessToken(refreshToken: string): Promise<Partial<IOAuthCredentials>> {
-        this.logger.debug('Refreshing access token');
+        this.logger.debug('OAuthService.refreshAccessToken -> Refreshing access token');
 
         try {
+            if (!this.initialized) {
+                await this.initialize();
+            }
+            
             const response = await this.http.post('https://oauth2.googleapis.com/token', {
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -278,6 +326,8 @@ export class OAuthService {
 
             const data = JSON.parse(response.content || '{}');
             
+            this.logger.debug('OAuthService.refreshAccessToken -> Token refreshed successfully');
+            
             return {
                 access_token: data.access_token,
                 token_type: data.token_type,
@@ -285,7 +335,7 @@ export class OAuthService {
                 scope: data.scope
             };
         } catch (error) {
-            this.logger.error('Error refreshing access token:', error);
+            this.logger.error('OAuthService.refreshAccessToken -> Error:', error);
             throw new Error(`Failed to refresh access token: ${error.message}`);
         }
     }
@@ -294,7 +344,7 @@ export class OAuthService {
      * Save OAuth credentials for a user
      */
     public async saveCredentials(userId: string, credentials: IOAuthCredentials): Promise<void> {
-        this.logger.debug(`Saving OAuth credentials for user ${userId}`);
+        this.logger.debug(`OAuthService.saveCredentials -> Saving OAuth credentials for user ${userId}`);
 
         const association = new RocketChatAssociationRecord(
             RocketChatAssociationModel.USER,
@@ -302,13 +352,14 @@ export class OAuthService {
         );
 
         await this.persistence.updateByAssociation(association, credentials, true);
+        this.logger.debug(`OAuthService.saveCredentials -> Credentials saved for user ${userId}`);
     }
 
     /**
      * Get OAuth credentials for a user
      */
     public async getCredentials(userId: string): Promise<IOAuthCredentials | undefined> {
-        this.logger.debug(`Getting OAuth credentials for user ${userId}`);
+        this.logger.debug(`OAuthService.getCredentials -> Getting OAuth credentials for user ${userId}`);
 
         const association = new RocketChatAssociationRecord(
             RocketChatAssociationModel.USER,
@@ -323,7 +374,7 @@ export class OAuthService {
      * Delete OAuth credentials for a user
      */
     public async deleteCredentials(userId: string): Promise<void> {
-        this.logger.debug(`Deleting OAuth credentials for user ${userId}`);
+        this.logger.debug(`OAuthService.deleteCredentials -> Deleting OAuth credentials for user ${userId}`);
 
         const association = new RocketChatAssociationRecord(
             RocketChatAssociationModel.USER,
@@ -331,6 +382,7 @@ export class OAuthService {
         );
 
         await this.persistence.removeByAssociation(association);
+        this.logger.debug(`OAuthService.deleteCredentials -> Credentials deleted for user ${userId}`);
     }
 
     /**
@@ -348,26 +400,44 @@ export class OAuthService {
         const credentials = await this.getCredentials(userId);
         
         if (!credentials) {
-            throw new Error('User not authenticated, please authorize with Google first');
+            throw new Error('User not authenticated, please use /rocket-mail login to connect your email account');
         }
 
         // Check if token is expired or about to expire (within 5 minutes)
         if (!credentials.expiry_date || credentials.expiry_date <= Date.now() + 5 * 60 * 1000) {
+            this.logger.debug(`OAuthService.getValidAccessToken -> Token expired for user ${userId}, refreshing...`);
+            
             // Token is expired or about to expire, refresh it
             if (!credentials.refresh_token) {
-                throw new Error('Missing refresh token, please re-authorize');
+                // If we don't have a refresh token, we can't refresh the access token
+                this.logger.error(`OAuthService.getValidAccessToken -> Missing refresh token for user ${userId}`);
+                
+                // Delete credentials as they're no longer valid and can't be refreshed
+                await this.deleteCredentials(userId);
+                
+                throw new Error('Your authentication has expired. Please use /rocket-mail login to reconnect your account');
             }
 
-            const newTokenData = await this.refreshAccessToken(credentials.refresh_token);
-            
-            const updatedCredentials = {
-                ...credentials,
-                ...newTokenData
-            };
+            try {
+                const newTokenData = await this.refreshAccessToken(credentials.refresh_token);
+                
+                const updatedCredentials = {
+                    ...credentials,
+                    ...newTokenData
+                };
 
-            await this.saveCredentials(userId, updatedCredentials as IOAuthCredentials);
-            
-            return updatedCredentials.access_token!;
+                await this.saveCredentials(userId, updatedCredentials as IOAuthCredentials);
+                
+                this.logger.debug(`OAuthService.getValidAccessToken -> Token refreshed for user ${userId}`);
+                return updatedCredentials.access_token!;
+            } catch (error) {
+                this.logger.error(`OAuthService.getValidAccessToken -> Error refreshing token: ${error.message}`);
+                
+                // If token refresh fails, delete the credentials to force re-authentication
+                await this.deleteCredentials(userId);
+                
+                throw new Error('Your authentication has expired. Please use /rocket-mail login to reconnect your account');
+            }
         }
 
         // Token is still valid

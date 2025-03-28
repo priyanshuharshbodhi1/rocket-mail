@@ -1,17 +1,19 @@
 import {
     IHttp,
-    IModify, 
+    IModify,
     IRead,
-    IPersistence
+    IPersistence,
 } from "@rocket.chat/apps-engine/definition/accessors";
 import { getEmailSettings } from "../config/SettingsManager";
 import { RocketMailApp } from "../RocketMailApp";
 import { EmailServiceFactory } from "../services/EmailServiceFactory";
+import { IEmailCountParams } from "../models/LLMTask";
 
-export class LastEmailCommand {
+export class CountEmailCommand {
     constructor(private readonly app: RocketMailApp) {}
 
     public async execute(
+        args: Array<string>,
         sender,
         room,
         read: IRead,
@@ -25,7 +27,43 @@ export class LastEmailCommand {
             .setSender(sender)
             .setRoom(room);
 
-        messageBuilder.setText("Retrieving your last email. Please wait...");
+        if (args.length === 0) {
+            messageBuilder.setText(
+                "Usage: /rocket-mail count [from:Sender] [since:YYYY-MM-DD] [until:YYYY-MM-DD]"
+            );
+            await modify.getCreator().finish(messageBuilder);
+            return;
+        }
+
+        // Parse count parameters
+        const countParams: IEmailCountParams = {
+            startDate: '',  // Required field, will set default below
+            endDate: ''     // Required field, will set default below
+        };
+        
+        for (const arg of args) {
+            if (arg.startsWith("from:")) {
+                countParams.sender = arg.substring(5).trim();
+            } else if (arg.startsWith("since:")) {
+                countParams.startDate = arg.substring(6).trim();
+            } else if (arg.startsWith("until:")) {
+                countParams.endDate = arg.substring(6).trim();
+            }
+        }
+        
+        // Set default date ranges if not specified
+        if (!countParams.startDate) {
+            const defaultStart = new Date();
+            defaultStart.setDate(defaultStart.getDate() - 7); // One week ago
+            countParams.startDate = defaultStart.toISOString().split('T')[0];
+        }
+        
+        if (!countParams.endDate) {
+            const defaultEnd = new Date();
+            countParams.endDate = defaultEnd.toISOString().split('T')[0];
+        }
+
+        messageBuilder.setText("🔢 Counting emails. Please wait...");
         await modify.getCreator().finish(messageBuilder);
 
         try {
@@ -34,7 +72,7 @@ export class LastEmailCommand {
             );
             
             try {
-                // Use the factory to create the appropriate email service
+                // Create the appropriate email service
                 const emailService = await EmailServiceFactory.createEmailService(
                     settings,
                     sender.id,
@@ -44,25 +82,22 @@ export class LastEmailCommand {
                     persistence
                 );
 
-                // Get the last email
-                const lastEmail = await emailService.getLastReceivedEmail();
-
+                // Count emails
+                const counts = await emailService.countEmails(countParams);
+                
                 const resultMessageBuilder = modify
                     .getCreator()
                     .startMessage()
                     .setSender(sender)
                     .setRoom(room);
 
-                resultMessageBuilder.setText(
-                    `📧 **Last Email**\n\n` +
-                    `**From**: ${lastEmail.from}\n` +
-                    `**Date**: ${lastEmail.date}\n` +
-                    `**Subject**: ${lastEmail.subject}\n\n` +
-                    `**Content**:\n${lastEmail.content?.substring(0, 1000)}${
-                        lastEmail.content?.length > 1000 ? "..." : ""
-                    }`
-                );
+                let resultText = `📊 **Email Count Results**\n\n`;
                 
+                for (const [date, count] of Object.entries(counts)) {
+                    resultText += `**${date}**: ${count} email${count === 1 ? '' : 's'}\n`;
+                }
+                
+                resultMessageBuilder.setText(resultText);
                 await modify.getCreator().finish(resultMessageBuilder);
             } catch (error) {
                 // Check if this is an authentication error
@@ -80,7 +115,7 @@ export class LastEmailCommand {
                 }
             }
         } catch (error) {
-            this.app.getLogger().error("Error retrieving email:", error);
+            this.app.getLogger().error("Error counting emails:", error);
             
             const errorMessage = modify
                 .getCreator()
@@ -88,7 +123,7 @@ export class LastEmailCommand {
                 .setSender(sender)
                 .setRoom(room);
             
-            errorMessage.setText(`❌ Error retrieving email: ${error.message}`);
+            errorMessage.setText(`❌ Error counting emails: ${error.message}`);
             await modify.getCreator().finish(errorMessage);
         }
     }

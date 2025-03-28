@@ -12,6 +12,7 @@ import {
 } from '@rocket.chat/apps-engine/definition/api';
 import { RocketMailApp } from '../RocketMailApp';
 import { OAuthService } from '../services/OAuthService';
+import { IUser } from '@rocket.chat/apps-engine/definition/users';
 
 export class OAuthEndpoint implements IApiEndpoint {
     public path = 'oauth-callback';
@@ -27,7 +28,7 @@ export class OAuthEndpoint implements IApiEndpoint {
         persistence: IPersistence
     ): Promise<IApiResponse> {
         const logger = this.app.getLogger();
-        logger.debug('OAuthEndpoint.get -> Received OAuth callback');
+        logger.debug('OAuthEndpoint.get -> Received OAuth callback', request.query);
 
         try {
             // Initialize OAuth service
@@ -53,147 +54,52 @@ export class OAuthEndpoint implements IApiEndpoint {
             const code = request.query.code;
             const state = request.query.state;
 
+            logger.debug('OAuthEndpoint.get -> Code and state received', { code: !!code, state });
+
             if (!code || !state) {
                 logger.error('OAuthEndpoint.get -> Missing code or state parameter');
-                return this.createResponse(400, 'text/html', this.getErrorHtml('Missing parameters'));
+                return this.createErrorResponse('Missing required parameters (code or state)');
             }
 
             // Validate the state parameter and get user ID
             const stateInfo = await oauthService.validateState(state);
             if (!stateInfo) {
                 logger.error('OAuthEndpoint.get -> Invalid or expired state parameter');
-                return this.createResponse(400, 'text/html', this.getErrorHtml('Invalid or expired authorization request'));
+                return this.createErrorResponse('Invalid or expired authorization request');
             }
+
+            logger.debug('OAuthEndpoint.get -> State validated, user ID:', stateInfo.userId);
 
             // Exchange code for tokens
-            const credentials = await oauthService.exchangeCodeForTokens(code);
+            try {
+                const credentials = await oauthService.exchangeCodeForTokens(code);
 
-            // Save credentials
-            await oauthService.saveCredentials(stateInfo.userId, credentials);
+                // Save credentials
+                await oauthService.saveCredentials(stateInfo.userId, credentials);
+                logger.info(`OAuthEndpoint.get -> Credentials saved for user ${stateInfo.userId}`);
 
-            // Send notification to the user
-            const appUser = await read.getUserReader().getById('rocket.cat');
-            const user = await read.getUserReader().getById(stateInfo.userId);
-
-            if (user && appUser) {
-                const room = await read.getRoomReader().getDirectByUsernames([appUser.username, user.username]);
-
-                if (room) {
-                    await modify.getNotifier().notifyUser(user, {
-                        sender: appUser,
-                        room,
-                        text: `✅ Your Gmail account (${credentials.email}) has been successfully connected!`,
-                    });
-                } else {
-                    logger.error('OAuthEndpoint.get -> Failed to find direct room for notification');
-                }
-            } else {
-                logger.error('OAuthEndpoint.get -> Failed to find user or app user');
+                // Return success page - the user will see a confirmation in their browser
+                return this.createSuccessResponse(credentials.email);
+            } catch (error) {
+                logger.error('OAuthEndpoint.get -> Error exchanging code for tokens:', error);
+                return this.createErrorResponse(`Error obtaining access token: ${error.message}`);
             }
-
-            // Return success page
-            return this.createResponse(200, 'text/html', this.getSuccessHtml(credentials.email));
         } catch (error) {
             logger.error('OAuthEndpoint.get -> Error handling OAuth callback:', error);
-            return this.createResponse(500, 'text/html', this.getErrorHtml(error.message));
+            return this.createErrorResponse(`An error occurred: ${error.message}`);
         }
     }
 
     /**
-     * Create an API response
+     * Create an error response
      */
-    private createResponse(
-        status: number,
-        contentType: string,
-        body: string
-    ): IApiResponse {
+    private createErrorResponse(errorMessage: string): IApiResponse {
         return {
-            status,
+            status: 400,
             headers: {
-                'Content-Type': contentType,
+                'Content-Type': 'text/html',
             },
-            content: body,
-        };
-    }
-
-    /**
-     * Get success HTML page
-     */
-    private getSuccessHtml(email: string): string {
-        return `
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Rocket Mail - Authentication Success</title>
-    <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f5f5f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .container {
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            padding: 40px;
-            max-width: 500px;
-            text-align: center;
-        }
-        h1 {
-            color: #2d5bff;
-            margin-bottom: 20px;
-        }
-        p {
-            color: #444;
-            font-size: 16px;
-            line-height: 1.6;
-        }
-        .success-icon {
-            font-size: 72px;
-            margin-bottom: 20px;
-            color: #4caf50;
-        }
-        .email {
-            font-weight: bold;
-            color: #333;
-        }
-        .close-button {
-            margin-top: 30px;
-            background-color: #2d5bff;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        .close-button:hover {
-            background-color: #1a46e0;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="success-icon">✅</div>
-        <h1>Authentication Successful</h1>
-        <p>Your Gmail account <span class="email">${email}</span> has been successfully connected to Rocket Mail.</p>
-        <p>You can now close this window and return to Rocket Chat.</p>
-        <button class="close-button" onclick="window.close()">Close Window</button>
-    </div>
-</body>
-</html>
-        `;
-    }
-
-    /**
-     * Get error HTML page
-     */
-    private getErrorHtml(errorMessage: string): string {
-        return `
+            content: `
 <!DOCTYPE html>
 <html>
 <head>
@@ -217,7 +123,7 @@ export class OAuthEndpoint implements IApiEndpoint {
             text-align: center;
         }
         h1 {
-            color: #e53935;
+            color: #e74c3c;
             margin-bottom: 20px;
         }
         p {
@@ -228,18 +134,11 @@ export class OAuthEndpoint implements IApiEndpoint {
         .error-icon {
             font-size: 72px;
             margin-bottom: 20px;
-            color: #e53935;
-        }
-        .error-message {
-            background-color: #ffebee;
-            padding: 10px;
-            border-radius: 4px;
-            margin: 20px 0;
-            color: #c62828;
+            color: #e74c3c;
         }
         .close-button {
             margin-top: 30px;
-            background-color: #e53935;
+            background-color: #e74c3c;
             color: white;
             border: none;
             padding: 10px 20px;
@@ -248,7 +147,7 @@ export class OAuthEndpoint implements IApiEndpoint {
             font-size: 16px;
         }
         .close-button:hover {
-            background-color: #c62828;
+            background-color: #c0392b;
         }
     </style>
 </head>
@@ -256,13 +155,98 @@ export class OAuthEndpoint implements IApiEndpoint {
     <div class="container">
         <div class="error-icon">❌</div>
         <h1>Authentication Error</h1>
-        <p>There was a problem connecting your Gmail account to Rocket Mail.</p>
-        <div class="error-message">${errorMessage}</div>
-        <p>Please try again or contact your system administrator if the problem persists.</p>
+        <p>${errorMessage}</p>
+        <p>Please try again or contact your administrator.</p>
         <button class="close-button" onclick="window.close()">Close Window</button>
     </div>
 </body>
 </html>
-        `;
+            `,
+        };
+    }
+
+    /**
+     * Create a success response
+     */
+    private createSuccessResponse(email: string): IApiResponse {
+        return {
+            status: 200,
+            headers: {
+                'Content-Type': 'text/html',
+            },
+            content: `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Rocket Mail - Authentication Success</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 500px;
+            text-align: center;
+        }
+        h1 {
+            color: #2ecc71;
+            margin-bottom: 20px;
+        }
+        p {
+            color: #444;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        .success-icon {
+            font-size: 72px;
+            margin-bottom: 20px;
+            color: #2ecc71;
+        }
+        .email {
+            font-weight: bold;
+            color: #333;
+        }
+        .close-button {
+            margin-top: 30px;
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .close-button:hover {
+            background-color: #27ae60;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">✅</div>
+        <h1>Authentication Successful</h1>
+        <p>Your Gmail account <span class="email">${email}</span> has been successfully connected to Rocket Mail.</p>
+        <p>You can now close this window and return to Rocket Chat to use email commands.</p>
+        <button class="close-button" onclick="window.close()">Close Window</button>
+    </div>
+    <script>
+        // Auto-close after 5 seconds
+        setTimeout(() => {
+            window.close();
+        }, 5000);
+    </script>
+</body>
+</html>
+            `,
+        };
     }
 }

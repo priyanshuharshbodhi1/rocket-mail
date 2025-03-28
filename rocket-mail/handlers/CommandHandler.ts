@@ -16,8 +16,13 @@ import { SendEmailCommand } from "../commands/SendEmailCommand";
 import { LastEmailCommand } from "../commands/LastEmailCommand";
 import { HelpCommand } from "../commands/HelpCommand";
 import { SummarizeCommand } from "../commands/SummarizeCommand";
+import { SearchEmailCommand } from "../commands/SearchEmailCommand";
+import { ViewEmailCommand } from "../commands/ViewEmailCommand";
+import { CountEmailCommand } from "../commands/CountEmailCommand";
 import { ContactService } from "../services/ContactService";
 import { LLMTaskHandler } from "../services/LLMTaskHandler";
+import { LoginCommand } from "../commands/LoginCommand";
+import { LogoutCommand } from "../commands/LogoutCommand";
 
 export class CommandHandler implements ISlashCommand {
     public command = "rocket-mail";
@@ -49,12 +54,12 @@ export class CommandHandler implements ISlashCommand {
         switch (subcommand.toLowerCase()) {
             case 'sendemail':
                 await new SendEmailCommand(this.app, this.contactService).execute(
-                    args, sender, room, read, modify, http
+                    args, sender, room, read, modify, http, persistence
                 );
                 break;
             case 'lastemail':
                 await new LastEmailCommand(this.app).execute(
-                    sender, room, read, modify, http
+                    sender, room, read, modify, http, persistence
                 );
                 break;
             case 'summarize':
@@ -79,6 +84,31 @@ export class CommandHandler implements ISlashCommand {
                 break;
             case 'help':
                 await new HelpCommand().execute(sender, room, modify);
+                break;
+            case 'login':
+                await new LoginCommand(this.app).executor(
+                    context, read, modify, http, persistence
+                );
+                break;
+            case 'logout':
+                await new LogoutCommand(this.app).executor(
+                    context, read, modify, http, persistence
+                );
+                break;
+            case 'search':
+                await new SearchEmailCommand(this.app).execute(
+                    args, sender, room, read, modify, http, persistence
+                );
+                break;
+            case 'view':
+                await new ViewEmailCommand(this.app).execute(
+                    args, sender, room, read, modify, http, persistence
+                );
+                break;
+            case 'count':
+                await new CountEmailCommand(this.app).execute(
+                    args, sender, room, read, modify, http, persistence
+                );
                 break;
             default:
                 await this.handleLLMTask(subcommand, args, sender, room, read, modify, http, persistence);
