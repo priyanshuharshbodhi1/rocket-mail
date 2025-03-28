@@ -5,6 +5,7 @@ import { EmailService } from "./EmailService";
 import { ContactService } from "./ContactService";
 import { getEmailSettings } from "../config/SettingsManager";
 import { IEmailSettings } from "../interfaces/IEmailService";
+import { RocketMailApp } from "../RocketMailApp";
 
 export class LLMTaskHandler {
     private llmService: LLMService;
@@ -16,9 +17,10 @@ export class LLMTaskHandler {
         private readonly modify: IModify,
         private readonly persistence: IPersistence,
         private readonly contactService: ContactService,
-        logger: ILogger
+        logger: ILogger,
+        private readonly app?: RocketMailApp
     ) {
-        this.llmService = new LLMService(http, logger);
+        this.llmService = new LLMService(http, logger, app);
         this.logger = logger;
     }
 

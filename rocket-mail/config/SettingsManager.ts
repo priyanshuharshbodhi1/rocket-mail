@@ -25,3 +25,10 @@ export async function getEmailSettings(settingsReader: ISettingRead): Promise<IE
         smtpPort: await settingsReader.getValueById(SettingsIds.SmtpPort) as number,
     };
 }
+
+/**
+ * Get DeepInfra API key from settings
+ */
+export async function getDeepInfraApiKey(settingsReader: ISettingRead): Promise<string> {
+    return (await settingsReader.getValueById(SettingsIds.DeepInfraApiKey) as string) || '';
+}

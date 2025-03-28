@@ -6,6 +6,7 @@ export enum SettingsIds {
     ImapServer = 'rocket_mail_imap_server',
     SmtpServer = 'rocket_mail_smtp_server',
     SmtpPort = 'rocket_mail_smtp_port',
+    DeepInfraApiKey = 'rocket_mail_deepinfra_api_key',
 }
 
 export const settings: Array<ISetting> = [
@@ -53,5 +54,14 @@ export const settings: Array<ISetting> = [
         public: false,
         i18nLabel: 'SMTP Port',
         i18nDescription: 'The SMTP server port (e.g., 587 for TLS, 465 for SSL)',
+    },
+    {
+        id: SettingsIds.DeepInfraApiKey,
+        type: SettingType.PASSWORD,
+        packageValue: '',
+        required: true,
+        public: false,
+        i18nLabel: 'DeepInfra API Key',
+        i18nDescription: 'API key for DeepInfra LLM service (used for summarization and other AI tasks)',
     },
 ];

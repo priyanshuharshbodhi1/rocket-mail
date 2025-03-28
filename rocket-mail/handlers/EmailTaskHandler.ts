@@ -26,7 +26,7 @@ export class EmailTaskHandler {
         private readonly read: IRead,
         private readonly logger: ILogger
     ) {
-        this.llmService = new LLMService(http, logger);
+        this.llmService = new LLMService(http, logger, app);
     }
 
     /**

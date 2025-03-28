@@ -3,16 +3,90 @@ import {
     IModify,
     IPersistence,
     IRead,
+    ILogger,
 } from "@rocket.chat/apps-engine/definition/accessors";
 import { IRoom } from "@rocket.chat/apps-engine/definition/rooms";
 import { IUser } from "@rocket.chat/apps-engine/definition/users";
 import { RocketMailApp } from "../RocketMailApp";
 import { LLMService } from "../services/LLMService";
+import { MessageService } from "../services/MessageService";
+import { ISummarizeParams } from "../models/SummarizeParams";
 
 export class SummarizeCommand {
-    constructor(
-        private readonly app: RocketMailApp
-    ) {}
+    private messageService: MessageService;
+
+    constructor(private readonly app: RocketMailApp) {
+        this.messageService = new MessageService(app.getLogger());
+    }
+
+    // public async execute(
+    //     args: Array<string>,
+    //     sender: IUser,
+    //     room: IRoom,
+    //     read: IRead,
+    //     modify: IModify,
+    //     http: IHttp,
+    //     persistence: IPersistence
+    // ): Promise<void> {
+    //     // Show processing message
+    //     const processingMessage = modify
+    //         .getCreator()
+    //         .startMessage()
+    //         .setSender(sender)
+    //         .setRoom(room)
+    //         .setText(`Processing your summarization request...\nThis may take a moment.`);
+
+    //     await modify.getCreator().finish(processingMessage);
+
+    //     try {
+    //         // Step 1: Process natural language instruction
+    //         const instruction = args.join(' ');
+    //         const llmService = new LLMService(http, this.app.getLogger(), this.app);
+
+    //         // Step 2: Extract parameters using LLM
+    //         const params = await llmService.processSummarizeTask(instruction);
+    //         this.app.getLogger().debug(`LLMService.processSummarizeTask -> Extracted parameters: ${JSON.stringify(params)}`);
+
+    //         // Step 3: Fetch messages based on extracted parameters
+    //         const messages = await this.messageService.getMessages(room, read, sender, params);
+
+    //         if (messages.length === 0) {
+    //             await this.sendResponse(
+    //                 modify,
+    //                 sender,
+    //                 room,
+    //                 `No messages found matching your criteria. Please try a different request.`
+    //             );
+    //             return;
+    //         }
+
+    //         // Step 4: Format messages for summarization
+    //         const formattedMessages = this.messageService.formatMessagesForSummary(messages);
+
+    //         // Step 5: Generate summary using LLM
+    //         const summary = await llmService.generateSummary(formattedMessages, room.displayName || room.slugifiedName || 'Chat');
+
+    //         // Step 6: Format as email
+    //         const emailContent = this.formatEmailContent(
+    //             summary,
+    //             room.displayName || room.slugifiedName || 'Chat',
+    //             params,
+    //             messages.length
+    //         );
+
+    //         // Step 7: Send formatted email to the channel
+    //         await this.sendResponse(modify, sender, room, emailContent);
+
+    //     } catch (error) {
+    //         this.app.getLogger().error("Error in summarize command:", error);
+    //         await this.sendResponse(
+    //             modify,
+    //             sender,
+    //             room,
+    //             `❌ An error occurred while summarizing: ${error.message}`
+    //         );
+    //     }
+    // }
 
     public async execute(
         args: Array<string>,
@@ -23,48 +97,117 @@ export class SummarizeCommand {
         http: IHttp,
         persistence: IPersistence
     ): Promise<void> {
-        // Show processing message
-        const processingMessage = modify
-            .getCreator()
-            .startMessage()
-            .setSender(sender)
-            .setRoom(room)
-            .setText(`Processing your summarization request...\nThis may take a moment.`);
-
-        await modify.getCreator().finish(processingMessage);
+        // Step 0: Notify that processing has started
+        await this.sendResponse(
+            modify,
+            sender,
+            room,
+            `Processing your summarization request... This may take a moment.`
+        );
 
         try {
-            // Parse arguments - options for time frame
-            const { timeFrame, recipient } = this.parseArguments(args);
-            
-            // Fetch messages from the channel/thread
-            const messages = await this.fetchMessages(room, read, timeFrame);
-            
+            // Step 1: Process natural language instruction
+            const instruction = args.join(" ");
+            await this.sendResponse(
+                modify,
+                sender,
+                room,
+                `Step 1: Received instruction - "${instruction}"`
+            );
+
+            // Initialize LLMService
+            const llmService = new LLMService(
+                http,
+                this.app.getLogger(),
+                this.app
+            );
+
+            // Step 2: Extract parameters using LLM
+            const params = await llmService.processSummarizeTask(instruction);
+            this.app.getLogger().debug(
+                `LLMService.processSummarizeTask -> Extracted parameters: ${JSON.stringify(params)}`
+            );
+            await this.sendResponse(
+                modify,
+                sender,
+                room,
+                `Step 2: Extracted parameters - ${JSON.stringify(params)}`
+            );
+
+            // Step 3: Fetch messages based on extracted parameters
+            const messages = await this.messageService.getMessages(room, read, sender, params);
+            await this.sendResponse(
+                modify,
+                sender,
+                room,
+                `Step 3: Fetched ${messages.length} message(s) based on your criteria.`
+            );
+
             if (messages.length === 0) {
-                this.sendResponse(
+                await this.sendResponse(
                     modify,
                     sender,
                     room,
-                    `No messages found in the specified time frame.`
+                    `No messages found matching your criteria. Please try a different request.`
                 );
                 return;
             }
 
-            // Format messages for summarization
-            const formattedMessages = this.formatMessagesForSummarization(messages);
-            
-            // Use LLM to summarize the messages
-            const summary = await this.summarizeMessages(formattedMessages, http);
+            // Step 4: Format messages for summarization
+            const formattedMessages = this.messageService.formatMessagesForSummary(messages);
+            await this.sendResponse(
+                modify,
+                sender,
+                room,
+                `Step 4: Formatted messages for summarization.`
+            );
 
-            // Format the email content
-            const emailContent = this.formatEmailContent(summary, room.displayName || room.slugifiedName || 'Chat', timeFrame, recipient);
+            // Optionally: Delay (comment out to remove, which is recommended to avoid timeouts)
+            // const delayTime = 30000; // 30 seconds
+            // await new Promise(resolve => setTimeout(resolve, delayTime));
+            // await this.sendResponse(
+            //     modify,
+            //     sender,
+            //     room,
+            //     `Step 5: Waiting for ${delayTime / 1000} seconds before generating summary...`
+            // );
 
-            // Send the formatted email to the channel
-            this.sendResponse(modify, sender, room, emailContent);
-            
-        } catch (error) {
+            // Step 5 (renumbered): Generate summary using LLM
+            const summary = await llmService.generateSummary(
+                formattedMessages,
+                room.displayName || room.slugifiedName || "Chat"
+            );
+            await this.sendResponse(
+                modify,
+                sender,
+                room,
+                `Step 5: Generated summary: ${summary.substring(0, 200)}...` // Truncated preview
+            );
+
+            // Step 6: Format as email
+            const emailContent = this.formatEmailContent(
+                summary,
+                room.displayName || room.slugifiedName || "Chat",
+                params,
+                messages.length
+            );
+            await this.sendResponse(
+                modify,
+                sender,
+                room,
+                `Step 6: Formatted email content.`
+            );
+
+            // Step 7: Send formatted email to the channel
+            await this.sendResponse(
+                modify,
+                sender,
+                room,
+                `Step 7: ${emailContent}`
+            );
+        } catch (error: any) {
             this.app.getLogger().error("Error in summarize command:", error);
-            this.sendResponse(
+            await this.sendResponse(
                 modify,
                 sender,
                 room,
@@ -73,146 +216,77 @@ export class SummarizeCommand {
         }
     }
 
-    private parseArguments(args: Array<string>): { timeFrame: { days: number }, recipient: string | undefined } {
-        // Default to last 24 hours
-        let days = 1;
-        let recipient: string | undefined = undefined;
+    private formatEmailContent(
+        summary: string,
+        roomName: string,
+        params: ISummarizeParams,
+        messageCount: number
+    ): string {
+        const now = new Date();
 
-        if (args.length > 0) {
-            for (let i = 0; i < args.length; i++) {
-                const arg = args[i].toLowerCase();
-                
-                // Check for time frame arguments
-                if (arg === '--days' || arg === '-d') {
-                    if (i + 1 < args.length) {
-                        const daysArg = parseInt(args[i + 1]);
-                        if (!isNaN(daysArg) && daysArg > 0) {
-                            days = daysArg;
-                            i++; // Skip the next argument which is the number
-                        }
+        // Create subject line based on parameters
+        let subject = `Summary of ${roomName}`;
+
+        // Add timeframe information to subject
+        if (params.timeframe) {
+            switch (params.timeframe.type) {
+                case "today":
+                    subject += ` - Today`;
+                    break;
+                case "week":
+                    subject += ` - Past Week`;
+                    break;
+                case "unread":
+                    subject += ` - Unread Messages`;
+                    break;
+                case "custom":
+                    if (
+                        params.timeframe.startDate &&
+                        params.timeframe.endDate
+                    ) {
+                        subject += ` - ${params.timeframe.startDate} to ${params.timeframe.endDate}`;
+                    } else if (params.timeframe.startDate) {
+                        subject += ` - Since ${params.timeframe.startDate}`;
                     }
-                }
-                // Check for recipient argument
-                else if (arg === '--to' || arg === '-t') {
-                    if (i + 1 < args.length) {
-                        recipient = args[i + 1];
-                        i++; // Skip the next argument which is the recipient
-                    }
-                }
+                    break;
             }
         }
 
-        return { timeFrame: { days }, recipient };
-    }
-
-    private async fetchMessages(room: IRoom, read: IRead, timeFrame: { days: number }) {
-        // Calculate the timestamp for messages since X days ago
-        const now = new Date();
-        const fromDate = new Date();
-        fromDate.setDate(now.getDate() - timeFrame.days);
-        
-        try {
-            // Since getMessages is not available, we'll use the REST API method
-            // through the built-in HTTP interface to get messages
-            const roomId = room.id;
-            
-            // For the purposes of our implementation, we'll simulate fetching messages
-            // In a real implementation, you would use the appropriate Rocket.Chat API
-            // to fetch messages from the room
-            
-            // Example mock data structure
-            const messages: Array<{
-                id: string;
-                sender: { username: string; name: string };
-                createdAt: string;
-                text: string;
-            }> = [];
-            
-            // TODO: In a real implementation, you would use the Rocket.Chat API to fetch messages
-            // This could be done through read.getEnvironmentReader().getServerSettings().getValueById('Site_Url')
-            // and then making HTTP calls to the Rocket.Chat REST API
-            
-            // For now, we'll just create a sample message for demonstration
-            messages.push({
-                id: 'sample-id',
-                sender: { username: 'user1', name: 'User One' },
-                createdAt: new Date().toISOString(),
-                text: 'This is a sample message for demonstration. In a real implementation, this would be fetched from the Rocket.Chat API.'
-            });
-            
-            return messages;
-        } catch (error) {
-            this.app.getLogger().error('Error fetching messages:', error);
-            throw new Error(`Failed to fetch messages: ${error.message}`);
+        // Add participant information if available
+        if (params.participants && params.participants.length > 0) {
+            subject += ` (${params.participants.join(", ")})`;
         }
-    }
 
-    private formatMessagesForSummarization(messages: Array<any>): string {
-        let formattedText = '';
-        
-        for (const message of messages) {
-            const sender = message.sender ? (message.sender.username || message.sender.name || 'Unknown User') : 'Unknown User';
-            const timestamp = message.createdAt ? new Date(message.createdAt).toISOString() : 'Unknown Time';
-            const text = message.text || '';
-            
-            formattedText += `[${timestamp}] ${sender}: ${text}\n\n`;
-        }
-        
-        return formattedText;
-    }
+        // Create to line
+        const toLine = params.recipient_email
+            ? `To: ${params.recipient_email}`
+            : "To: [Recipient email will be added here]";
 
-    private async summarizeMessages(messagesText: string, http: IHttp): Promise<string> {
-        const llmService = new LLMService(http, this.app.getLogger());
-        
-        try {
-            // Create a prompt for summarization
-            const prompt = `You are an AI assistant tasked with summarizing Rocket.Chat conversation history.
-Please analyze the following conversation and create a concise but comprehensive summary.
-Focus on the main topics discussed, key decisions made, action items, and any important information shared.
-Format your response in a clear, professional way.
-
-CONVERSATION HISTORY:
-${messagesText}
-
-SUMMARY:`;
-            
-            // Call the LLM service with the prompt
-            const response = await llmService.callLLM(prompt);
-            return response || "Unable to generate summary.";
-        } catch (error) {
-            this.app.getLogger().error('Error in summarizing messages:', error);
-            throw new Error('Failed to generate summary');
-        }
-    }
-
-    private formatEmailContent(summary: string, roomName: string, timeFrame: { days: number }, recipient?: string): string {
-        const now = new Date();
-        const fromDate = new Date();
-        fromDate.setDate(now.getDate() - timeFrame.days);
-        
-        const subject = `Summary of ${roomName} - ${this.formatDate(fromDate)} to ${this.formatDate(now)}`;
-        
-        const toLine = recipient ? `To: ${recipient}` : 'To: [Recipient email will be added here]';
-        
         return `
-📧 **EMAIL FORMAT**
+            📧 **EMAIL FORMAT**
 
-**From:** rocket-mail@rocket.chat
-**${toLine}**
-**Subject:** ${subject}
-**Date:** ${now.toISOString()}
+            **From:** rocket-mail@rocket.chat
+            **${toLine}**
+            **Subject:** ${subject}
+            **Date:** ${now.toISOString()}
 
-**Summary of Conversation in ${roomName}:**
+            **Summary of Conversation in ${roomName}:**
 
-${summary}
+            ${summary}
 
----
-*This summary was generated by the Rocket-Mail app*
-*Time period: Last ${timeFrame.days} day(s)*
+            ---
+            *This summary was generated by the Rocket-Mail app*
+            *Analyzed ${messageCount} messages*
+            *Time: ${now.toLocaleString()}*
         `;
     }
 
-    private async sendResponse(modify: IModify, sender: IUser, room: IRoom, text: string): Promise<void> {
+    private async sendResponse(
+        modify: IModify,
+        sender: IUser,
+        room: IRoom,
+        text: string
+    ): Promise<void> {
         const messageBuilder = modify
             .getCreator()
             .startMessage()
@@ -221,14 +295,5 @@ ${summary}
             .setText(text);
 
         await modify.getCreator().finish(messageBuilder);
-    }
-    
-    /**
-     * Format a date to a readable string
-     * @param date The date to format
-     * @returns Formatted date string (YYYY-MM-DD)
-     */
-    private formatDate(date: Date): string {
-        return date.toISOString().split('T')[0];
     }
 }

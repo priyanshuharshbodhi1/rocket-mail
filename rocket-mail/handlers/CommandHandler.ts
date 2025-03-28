@@ -116,7 +116,8 @@ export class CommandHandler implements ISlashCommand {
                 modify,
                 persistence,
                 this.contactService,
-                this.app.getLogger()
+                this.app.getLogger(),
+                this.app
             );
 
             // Process the task

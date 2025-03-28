@@ -50,6 +50,19 @@ export class RocketMailApp extends App {
     }
 
     /**
+     * Get DeepInfra API key from settings
+     */
+    public async getDeepInfraApiKey(): Promise<string> {
+        try {
+            const value = await this.getAccessors().environmentReader.getSettings().getValueById('DeepInfraApiKey');
+            return value ? String(value) : '';
+        } catch (error) {
+            this.getLogger().error('Error getting DeepInfra API key:', error);
+            return '';
+        }
+    }
+
+    /**
      * Get OAuth client ID from settings
      */
     public async getOAuthClientId(): Promise<string> {
