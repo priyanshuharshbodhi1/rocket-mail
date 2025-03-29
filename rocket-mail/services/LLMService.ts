@@ -25,13 +25,15 @@ export class LLMService {
     private async initialize() {
         if (this.app) {
             try {
-                // this.apiKey = await this.app.getDeepInfraApiKey();
-                this.apiKey = "pCatSHn3si0FHeUqCZAjfMHezROTvXPH";
+                this.apiKey = await this.app.getDeepInfraApiKey();
+                // this.apiKey = "CatSHn3si0FHeUqCZAjfMHezROTvXPH";
             } catch (error) {
                 this.logger.error("Failed to initialize LLM API key:", error);
             }
         }
     }
+
+    //I WAS DEBUGGING SO U MAY FIND SOME COMMENTED SIMILAR FUNCTIONS:
 
     /**
      * Process an email task using LLM
