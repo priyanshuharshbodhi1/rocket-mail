@@ -34,7 +34,16 @@ export class ViewEmailCommand {
             return;
         }
 
-        const emailId = args[0];
+        const emailId = args[0].trim();
+        
+        // Basic validation that emailId is not empty
+        if (!emailId) {
+            messageBuilder.setText(
+                "❌ Email ID cannot be empty. Usage: /rocket-mail view <email_id>"
+            );
+            await modify.getCreator().finish(messageBuilder);
+            return;
+        }
         
         messageBuilder.setText(`🔍 Retrieving email. Please wait...`);
         await modify.getCreator().finish(messageBuilder);
@@ -55,27 +64,44 @@ export class ViewEmailCommand {
                     persistence
                 );
 
-                // Get the email by ID
-                const email = await emailService.getEmailById(emailId);
-                
-                const resultMessageBuilder = modify
-                    .getCreator()
-                    .startMessage()
-                    .setSender(sender)
-                    .setRoom(room);
+                try {
+                    // Get the email by ID
+                    const email = await emailService.getEmailById(emailId);
+                    
+                    const resultMessageBuilder = modify
+                        .getCreator()
+                        .startMessage()
+                        .setSender(sender)
+                        .setRoom(room);
 
-                resultMessageBuilder.setText(
-                    `📧 **Email Details**\n\n` +
-                    `**From**: ${email.from}\n` +
-                    `**To**: ${email.to}\n` +
-                    `**Date**: ${email.date}\n` +
-                    `**Subject**: ${email.subject}\n\n` +
-                    `**Content**:\n${email.content?.substring(0, 2000)}${
-                        email.content?.length > 2000 ? "..." : ""
-                    }`
-                );
-                
-                await modify.getCreator().finish(resultMessageBuilder);
+                    resultMessageBuilder.setText(
+                        `📧 **Email Details**\n\n` +
+                        `**From**: ${email.from}\n` +
+                        `**To**: ${email.to}\n` +
+                        `**Date**: ${email.date}\n` +
+                        `**Subject**: ${email.subject}\n\n` +
+                        `**Content**:\n${email.content?.substring(0, 2000)}${
+                            email.content?.length > 2000 ? "..." : ""
+                        }`
+                    );
+                    
+                    await modify.getCreator().finish(resultMessageBuilder);
+                } catch (emailError) {
+                    // Handle specific email retrieval errors
+                    const errorMessageBuilder = modify
+                        .getCreator()
+                        .startMessage()
+                        .setSender(sender)
+                        .setRoom(room);
+                    
+                    if (emailError.message.includes("Invalid id")) {
+                        errorMessageBuilder.setText(`❌ Invalid email ID format. Please use the ID provided by the search command.`);
+                    } else {
+                        errorMessageBuilder.setText(`❌ Error retrieving email: ${emailError.message}`);
+                    }
+                    
+                    await modify.getCreator().finish(errorMessageBuilder);
+                }
             } catch (error) {
                 // Check if this is an authentication error
                 if (error.message && error.message.includes("not authenticated")) {
