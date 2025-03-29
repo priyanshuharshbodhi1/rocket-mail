@@ -7,6 +7,8 @@ export interface ILLMTaskResult {
 export interface ILLMTaskRequest {
     task: string;
     userId: string;
+    contacts?: string;
+    availableFunctions?: string;
 }
 
 export interface ILLMEmailAction {

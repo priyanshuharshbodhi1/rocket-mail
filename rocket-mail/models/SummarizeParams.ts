@@ -1,5 +1,5 @@
 export interface ISummarizeParams {
-    action: 'summarize'; 
+    action?: 'summarize'; 
     timeframe?: {
         type: 'today' | 'week' | 'custom' | 'unread';
         startDate?: string;
@@ -8,6 +8,13 @@ export interface ISummarizeParams {
     participants?: string[];
     recipient_email?: string;
     user_intention?: string;
+    
+    // New fields
+    type?: 'email_report' | 'email_thread' | 'chat_thread';
+    days?: number;
+    keywords?: string[];
+    format?: 'bullet' | 'paragraph' | 'detailed' | 'brief';
+    maxLength?: number;
 }
 
 export interface IMessage {

@@ -7,10 +7,20 @@ import { IEmailSettings } from "../interfaces/IEmailService";
 import { RocketMailApp } from "../RocketMailApp";
 import { EmailServiceFactory } from "./EmailServiceFactory";
 import { GmailService } from "./GmailService";
+import { ReportCommand } from "../commands/ReportCommand";
+import { MessageService } from "./MessageService";
+
+// Define contact interface locally to avoid import issues
+interface IContact {
+    name: string;
+    email: string;
+    metadata?: Record<string, any>;
+}
 
 export class LLMTaskHandler {
     private llmService: LLMService;
     private logger: ILogger;
+    private messageService: MessageService;
 
     constructor(
         private readonly read: IRead,
@@ -23,17 +33,29 @@ export class LLMTaskHandler {
     ) {
         this.llmService = new LLMService(http, logger, app);
         this.logger = logger;
+        this.messageService = new MessageService(logger);
     }
 
     public async processTask(task: string, sender: any): Promise<ILLMTaskResult> {
         try {
+            // Get user's contact list for better context
+            const contacts = await this.contactService.getContacts(sender.id, this.read);
+            
+            // Format contact list for LLM context
+            const contactsContext = this.formatContactsForContext(contacts);
+            
+            // Get available functions to provide in the context
+            const functionsContext = this.getAvailableFunctionsContext();
+            
             // First, substitute any contact references in the task
             const processedTask = await this.processContactReferences(task, sender.id);
             
-            // Send the task to the LLM for analysis
+            // Send the task to the LLM for analysis along with contacts and functions
             const llmAction = await this.llmService.processEmailTask({
                 task: processedTask,
-                userId: sender.username
+                userId: sender.username,
+                contacts: contactsContext,
+                availableFunctions: functionsContext
             });
 
             // Execute the appropriate action based on LLM analysis
@@ -45,6 +67,34 @@ export class LLMTaskHandler {
                 message: `An error occurred while processing your request: ${error.message}`
             };
         }
+    }
+
+    /**
+     * Format contacts into a readable string for LLM context
+     */
+    private formatContactsForContext(contacts: IContact[]): string {
+        if (!contacts || contacts.length === 0) {
+            return "No saved contacts.";
+        }
+
+        return contacts.map(contact => 
+            `${contact.name}: ${contact.email}`
+        ).join(", ");
+    }
+
+    /**
+     * Provide information about available functions for the LLM
+     */
+    private getAvailableFunctionsContext(): string {
+        return `
+        1. search_emails(params: {startDate, endDate, sender, subject, body, limit}) - Search emails matching criteria
+        2. count_emails(params: {startDate, endDate, sender}) - Count emails in a date range
+        3. view_email(emailId) - View a specific email by ID
+        4. send_email(to, subject, body, cc) - Send a new email
+        5. get_report(days) - Generate an email activity report for past N days
+        6. summarize_thread(timeframe, participants) - Summarize conversation threads
+        7. get_messages(room, timeframe, participants) - Retrieve messages from a chat
+        `;
     }
 
     private async processContactReferences(task: string, userId: string): Promise<string> {
@@ -108,18 +158,132 @@ export class LLMTaskHandler {
                     
                 case LLMEmailActionType.SEND_EMAIL:
                     return await this.handleSendEmail(emailService, settings, action.parameters);
+                
+                case LLMEmailActionType.SUMMARIZE:
+                    return await this.handleSummarize(action.parameters, sender);
                     
                 case LLMEmailActionType.UNKNOWN:
                 default:
                     return {
                         success: false,
-                        message: "I couldn't understand what email task you wanted me to perform. Please try rephrasing your request."
+                        message: "I couldn't understand what you wanted me to do. Please try rephrasing your request with more details about the email task you'd like to perform."
                     };
             }
         } catch (error) {
             return {
                 success: false,
                 message: `Error executing email action: ${error.message}`
+            };
+        }
+    }
+
+    /**
+     * Handle the summarize action
+     */
+    private async handleSummarize(params: any, sender: any): Promise<ILLMTaskResult> {
+        try {
+            const type = params.type || 'email_report';
+            
+            // Handle email report generation
+            if (type === 'email_report') {
+                const days = params.days || 7;
+                
+                // Use the ReportCommand directly
+                if (!this.app) {
+                    return {
+                        success: false,
+                        message: "App instance is not available. Unable to generate report."
+                    };
+                }
+                
+                const reportCommand = new ReportCommand(this.app);
+                await reportCommand.execute(
+                    [days.toString()],
+                    sender,
+                    sender.room,
+                    this.read,
+                    this.modify,
+                    this.http,
+                    this.persistence
+                );
+                
+                return {
+                    success: true,
+                    message: `I've generated a report of your email activity for the past ${days} days.`
+                };
+            }
+            
+            // Handle thread summarization
+            if (type.includes('thread')) {
+                // Get the room and timeframe
+                const timeframe = params.timeframe || { type: 'today' };
+                
+                // Get messages based on the parameters
+                const messages = await this.messageService.getMessages(
+                    sender.room,
+                    this.read,
+                    sender,
+                    params
+                );
+                
+                if (messages.length === 0) {
+                    return {
+                        success: false,
+                        message: "No messages found for summarization."
+                    };
+                }
+                
+                // Format messages for summarization
+                const formattedMessages = this.messageService.formatMessagesForSummary(messages);
+                
+                // Generate summary
+                const summary = await this.llmService.generateSummary(
+                    formattedMessages,
+                    sender.room.displayName || sender.room.slugifiedName || 'Chat'
+                );
+                
+                // If recipient is specified, send as email
+                if (params.recipient_email) {
+                    const emailSettings = await getEmailSettings(this.read.getEnvironmentReader().getSettings());
+                    const emailService = await EmailServiceFactory.createEmailService(
+                        emailSettings,
+                        sender.id,
+                        this.logger,
+                        this.http,
+                        this.read,
+                        this.persistence
+                    );
+                    
+                    // Send the summary as an email
+                    await emailService.sendEmail({
+                        from: emailSettings.email,
+                        to: params.recipient_email,
+                        subject: `Summary of ${sender.room.displayName || sender.room.slugifiedName || 'Conversation'}`,
+                        text: summary
+                    });
+                    
+                    return {
+                        success: true,
+                        message: `📧 Successfully sent summary to ${params.recipient_email}:\n\n${summary.substring(0, 200)}...`
+                    };
+                }
+                
+                // Otherwise just return the summary
+                return {
+                    success: true,
+                    message: `📝 **Summary**\n\n${summary}`
+                };
+            }
+            
+            return {
+                success: false,
+                message: "I couldn't understand the type of summary you wanted. Please try again."
+            };
+        } catch (error) {
+            this.logger.error('Error handling summarize action:', error);
+            return {
+                success: false,
+                message: `Failed to generate summary: ${error.message}`
             };
         }
     }
@@ -201,7 +365,9 @@ export class LLMTaskHandler {
                 `To: ${email.to}\n` +
                 `Date: ${email.date}\n` +
                 `Subject: ${email.subject}\n\n` +
-                `**Content:**\n\n${email.content}`;
+                `**Content**:\n${email.content?.substring(0, 1500)}${
+                    email.content?.length > 1500 ? "..." : ""
+                }`;
             
             return {
                 success: true,
@@ -209,7 +375,7 @@ export class LLMTaskHandler {
                 data: email
             };
         } catch (error) {
-            this.logger.error('Error retrieving email:', error);
+            this.logger.error('Error viewing email:', error);
             return {
                 success: false,
                 message: `Failed to retrieve email: ${error.message}`
@@ -217,45 +383,35 @@ export class LLMTaskHandler {
         }
     }
 
-    private async handleSendEmail(
-        emailService: GmailService, 
-        settings: IEmailSettings, 
-        params: any
-    ): Promise<ILLMTaskResult> {
+    private async handleSendEmail(emailService: GmailService, settings: IEmailSettings, params: any): Promise<ILLMTaskResult> {
         try {
-            // Validate parameters
-            if (!params.to || !params.subject || !params.body) {
+            // Validate required parameters
+            if (!params.to || !params.body) {
                 return {
                     success: false,
-                    message: "Missing required parameters for sending email. Need recipient, subject, and body."
+                    message: "Missing required parameters for sending email. Please specify recipient and message content."
                 };
             }
             
-            // Convert single recipient to array if needed
-            const to = Array.isArray(params.to) ? params.to.join(', ') : params.to;
+            // Format recipient(s)
+            const recipients = Array.isArray(params.to) ? params.to : [params.to];
             
+            // Create email content object
             const emailContent = {
                 from: settings.email,
-                to: to,
-                subject: params.subject,
+                to: recipients.join(', '),
+                subject: params.subject || "No Subject",
                 text: params.body,
                 html: params.html
             };
             
-            const result = await emailService.sendEmail(emailContent);
+            // Send the email
+            await emailService.sendEmail(emailContent);
             
-            if (result) {
-                return {
-                    success: true,
-                    message: `Email sent successfully to ${to}`,
-                    data: { recipient: to, subject: params.subject }
-                };
-            } else {
-                return {
-                    success: false,
-                    message: "Failed to send email"
-                };
-            }
+            return {
+                success: true,
+                message: `✅ Email sent successfully to ${emailContent.to} with subject "${emailContent.subject}"`
+            };
         } catch (error) {
             this.logger.error('Error sending email:', error);
             return {

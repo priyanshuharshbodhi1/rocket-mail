@@ -26,14 +26,11 @@ export class LLMService {
         if (this.app) {
             try {
                 this.apiKey = await this.app.getDeepInfraApiKey();
-                // this.apiKey = "CatSHn3si0FHeUqCZAjfMHezROTvXPH";
             } catch (error) {
                 this.logger.error("Failed to initialize LLM API key:", error);
             }
         }
     }
-
-    //I WAS DEBUGGING SO U MAY FIND SOME COMMENTED SIMILAR FUNCTIONS:
 
     /**
      * Process an email task using LLM
@@ -45,38 +42,49 @@ export class LLMService {
             `LLMService.processEmailTask -> Processing task: ${taskRequest.task}`
         );
 
-        const prompt = `You are an email assistant that helps users process email-related tasks.
-            Based on the user's request, determine what email action they want to perform and extract relevant parameters.
+        const prompt = `##You are an AI assistant designed to understand user requests and convert them into structured email actions.
 
-            Possible actions:
-            1. search-emails: Find emails matching certain criteria
-            2. count-emails: Count emails matching certain criteria
-            3. view-email: View a specific email or the latest email
-            4. send-email: Compose and send a new email
-            5. unknown: If the user's intent doesn't match any of the above
+#Follow these guidelines:
+    - Your primary goal is to convert user input into a structured JSON format for email actions.
+    - Always respond with a JSON object that contains the keys "action", "parameters", and "rationale".
+    - The "action" key should be one of the following values: "send-email", "summarize", or "unknown".
+    - The "parameters" key should be a JSON object containing the parameters for the action.
+    - The "rationale" key should contain a brief explanation of why this action was chosen.
+    - Never make up email content that the user didn't specify
+    - For send-email, ensure all required parameters (to, subject, body) are included
+    - If the task doesn't clearly map to an email action, use "unknown" with an explanation
 
-            For the request: "${taskRequest.task}"
+#You have access to the following contacts:
+    ${taskRequest.contacts ? taskRequest.contacts : "[]"}
 
-            Respond in this JSON format only:
+#You have access to the following functions:
+    ${taskRequest.availableFunctions ? taskRequest.availableFunctions : ""}
+
+#EXAMPLE TO HELP YOU UNDERSTAND THE TASK:
+        -->Suppose user gives a TASK REQUEST:
+            "Send an email to Boss about extension of deadline for project X",
+            You also have contacts list- to get more context: { contact list -- It will contain key value pairs, and one of which will be Boss : boss@example.com }
+            You also have list of functions to choose from: { list of functions - It will contain list of functions with arguments }
+
+        -->RESPONSE for it should be:
             {
-            "action": "one of [search-emails, count-emails, view-email, send-email, unknown]",
-            "parameters": {
-                // Parameters specific to the action
-                // For search-emails: startDate, endDate, sender, subject, body, folder, limit
-                // For count-emails: startDate, endDate, sender
-                // For view-email: emailId (use "latest" for the most recent email)
-                // For send-email: to, subject, body, cc
-            }
+                "action" : "send-email",
+                "parameters" : {
+                    "to" : ["boss@example.com"],
+                    "subject" : "Extension of deadline for project X",
+                    "body" : "body of the email",
+                    "cc" : []
+                },
+                "rationale" : "brief explanation of why this action was chosen"
             }
 
-            EXTREMELY IMPORTANT:
-            - For send-email, always include: "to" (email addresses), "subject" (can be empty string if no subject mentioned), and "body"
-            - If the user explicitly wants to send an email WITHOUT a subject or says "no subject", set subject to an empty string ""
-            - If the user doesn't mention subject at all, try to generate an appropriate subject based on the content
-            - Parse time periods like "yesterday", "last week", "today" into actual date ranges
-            - Extract email addresses accurately - they typically contain @ symbol
-            - Never make up email content that the user didn't specify
-            - Never add extra text to subject or body content beyond what the user specified`;
+-----------------------------------------------------------------------------------------------------------------------------
+
+##TASK REQUEST:
+    ${taskRequest.task}
+
+##RESPONSE:
+`;
 
         try {
             const response = await this.http.post(this.apiUrl, {
@@ -90,6 +98,9 @@ export class LLMService {
                     max_tokens: 1000,
                 },
             });
+
+            this.logger.debug("LLM intent Response:", response);
+            console.log("LLM intent Response:", response);
 
             if (response.statusCode !== 200) {
                 const errorContent =
@@ -109,23 +120,38 @@ export class LLMService {
             }
 
             const data = JSON.parse(response.content);
-            if (!data.output) {
+            if (!data.output || typeof data.output !== 'string') {
                 throw new Error("Invalid response from LLM API");
             }
 
             // Extract the JSON from the response
             const jsonMatch = data.output.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
+            if (!jsonMatch || !jsonMatch[0]) {
                 throw new Error("Could not extract JSON from LLM response");
             }
 
             const llmResponse = JSON.parse(jsonMatch[0]);
+            this.logger.debug(`LLMService.processEmailTask -> LLM Response: ${JSON.stringify(llmResponse)}`);
 
             // Parse the LLM's response into our action format
             const emailAction: ILLMEmailAction = {
                 action: this.mapActionType(llmResponse.action),
                 parameters: llmResponse.parameters || {},
             };
+
+            // Special handling for summarize action - map to appropriate existing command
+            if (emailAction.action === LLMEmailActionType.SUMMARIZE) {
+                const type = emailAction.parameters.type;
+
+                if (type === "email_report") {
+                    // Map to report command
+                    emailAction.action = LLMEmailActionType.SUMMARIZE;
+                    // Ensure days parameter exists, default to 7 if not specified
+                    if (!emailAction.parameters.days || isNaN(parseInt(String(emailAction.parameters.days)))) {
+                        emailAction.parameters.days = 7;
+                    }
+                }
+            }
 
             // For send email action, ensure parameters are properly formatted
             if (emailAction.action === LLMEmailActionType.SEND_EMAIL) {
@@ -134,7 +160,7 @@ export class LLMService {
                     emailAction.parameters.to = [emailAction.parameters.to];
                 }
 
-                // Handle case where a user explicitly wants no subject (check for phrases or empty string)
+                // Handle case where a user explicitly wants no subject
                 const taskLower = taskRequest.task.toLowerCase();
                 const noSubjectPhrases = [
                     "no subject",
@@ -200,26 +226,152 @@ export class LLMService {
                     emailAction
                 )}`
             );
+
             return emailAction;
         } catch (error) {
             this.logger.error(
-                `LLMService.processEmailTask -> Error: ${error.message}`
+                `LLMService.processEmailTask -> Error processing task: ${error}`
             );
-            // Default to unknown action on error
             return {
                 action: LLMEmailActionType.UNKNOWN,
-                parameters: {},
+                parameters: {
+                    error: error.message,
+                },
             };
         }
     }
 
     /**
-     * Make a direct call to the LLM with a custom prompt
-     * @param prompt The prompt to send to the LLM
-     * @returns The LLM's response
+     * Map string action to LLMEmailActionType enum
      */
-    public async callLLM(prompt: string): Promise<string> {
-        this.logger.debug(`LLMService.callLLM -> Processing prompt`);
+    private mapActionType(action: string): LLMEmailActionType {
+        switch (action) {
+            case "search-emails":
+                return LLMEmailActionType.SEARCH_EMAILS;
+            case "count-emails":
+                return LLMEmailActionType.COUNT_EMAILS;
+            case "view-email":
+                return LLMEmailActionType.VIEW_EMAIL;
+            case "send-email":
+                return LLMEmailActionType.SEND_EMAIL;
+            case "summarize":
+                return LLMEmailActionType.SUMMARIZE;
+            default:
+                return LLMEmailActionType.UNKNOWN;
+        }
+    }
+
+    /**
+     * Process a summarize task using LLM
+     */
+    public async processSummarizeTask(
+        instruction: string
+    ): Promise<ISummarizeParams> {
+        this.logger.debug(
+            `LLMService.processSummarizeTask -> Processing instruction: ${instruction}`
+        );
+
+        const prompt = `You are a chat summarization assistant that understands natural language requests.
+            Based on the user's instruction, determine what content they want to summarize and extract relevant parameters.
+
+            For the instruction: "${instruction}"
+
+            Extract the following parameters:
+            1. Timeframe: The period of messages to summarize (today, week, etc.)
+            2. Participants: Specific users to focus on (if mentioned)
+            3. Keywords: Key topics to focus on in the summary
+            4. Format: The desired format of the summary (bullet points, paragraphs, detailed, brief)
+            5. Max length: How long the summary should be (if specified)
+            6. Recipient: Who should receive the summary (if it should be emailed)
+
+            Respond in this JSON format only, making reasonable assumptions for missing information:
+            {
+                "timeframe": {
+                    "type": "today|week|unread|custom",
+                    "startDate": "YYYY-MM-DD", // If custom
+                    "endDate": "YYYY-MM-DD" // If custom
+                },
+                "participants": ["user1", "user2"], // Empty array if none specified
+                "keywords": ["keyword1", "keyword2"], // Empty array if none specified
+                "format": "bullet|paragraph|detailed|brief",
+                "maxLength": number, // 0 if not specified
+                "recipient_email": "email@example.com" // Empty string if not specified
+            }`;
+
+        try {
+            const response = await this.http.post(this.apiUrl, {
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${this.apiKey}`,
+                },
+                data: {
+                    input: prompt,
+                    temperature: 0.1,
+                    max_tokens: 1000,
+                },
+            });
+
+            if (response.statusCode !== 200) {
+                throw new Error(
+                    `LLM API returned status ${response.statusCode}`
+                );
+            }
+
+            if (!response.content) {
+                throw new Error("Empty response from LLM API");
+            }
+
+            const data = JSON.parse(response.content);
+            if (!data.output || typeof data.output !== 'string') {
+                throw new Error("Invalid response from LLM API");
+            }
+
+            // Extract the JSON from the response
+            const jsonMatch = data.output.match(/\{[\s\S]*\}/);
+            if (!jsonMatch || !jsonMatch[0]) {
+                throw new Error("Could not extract JSON from LLM response");
+            }
+
+            return JSON.parse(jsonMatch[0]);
+        } catch (error) {
+            this.logger.error(
+                `LLMService.processSummarizeTask -> Error processing instruction: ${error}`
+            );
+            // Return default parameters
+            return {
+                timeframe: {
+                    type: "today",
+                },
+                participants: [],
+                keywords: [],
+                format: "paragraph",
+                maxLength: 0,
+                recipient_email: "",
+            };
+        }
+    }
+
+    /**
+     * Generate a summary using LLM
+     */
+    public async generateSummary(
+        messages: string,
+        channelName: string
+    ): Promise<string> {
+        this.logger.debug(
+            `LLMService.generateSummary -> Generating summary for channel: ${channelName}`
+        );
+
+        const prompt = `You are a chat summarization assistant.
+            Summarize the following conversation from the "${channelName}" channel in a clear, concise manner.
+            Focus on the main topics discussed, important decisions made, and action items.
+            Structure the summary as a coherent paragraph.
+
+            Here's the conversation:
+            ${messages}
+
+            Provide a summary that captures the key points, main discussion threads, and any important outcomes.
+            Make sure the summary is clear to someone who wasn't part of the original conversation.`;
 
         try {
             const response = await this.http.post(this.apiUrl, {
@@ -230,18 +382,11 @@ export class LLMService {
                 data: {
                     input: prompt,
                     temperature: 0.3,
-                    max_tokens: 1500,
+                    max_tokens: 1000,
                 },
             });
 
             if (response.statusCode !== 200) {
-                const errorContent =
-                    typeof response.content === "string"
-                        ? response.content
-                        : "No content returned";
-                this.logger.error(
-                    `LLMService.callLLM -> Error: ${errorContent}`
-                );
                 throw new Error(
                     `LLM API returned status ${response.statusCode}`
                 );
@@ -252,510 +397,18 @@ export class LLMService {
             }
 
             const data = JSON.parse(response.content);
-            if (!data.output) {
-                throw new Error("Invalid response from LLM API");
-            }
+            // Ensure we have a valid string before doing any operations
+            const outputStr = typeof data.output === 'string' ? data.output : '';
+            const summary = outputStr
+                ? outputStr.replace(/^Summary:|\bSummary\b:/i, "").trim()
+                : "Failed to generate summary due to an error.";
 
-            return data.output.trim();
-        } catch (error) {
-            this.logger.error(`LLMService.callLLM -> Error: ${error.message}`);
-            throw new Error(
-                `Failed to get response from LLM: ${error.message}`
-            );
-        }
-    }
-
-    /**
-     * Format the task result using LLM
-     */
-    public async formatTaskResult(
-        result: any,
-        actionType: LLMEmailActionType
-    ): Promise<string> {
-        this.logger.debug(
-            `LLMService.formatTaskResult -> Formatting result for ${actionType}`
-        );
-
-        let promptContent = "";
-
-        switch (actionType) {
-            case LLMEmailActionType.SEARCH_EMAILS:
-                promptContent = `You searched for emails and found ${
-                    result.count
-                } matching emails. ${
-                    result.count > 0 ? "Here's a summary:" : ""
-                }`;
-                if (result.count > 0) {
-                    result.emails.forEach((email, index) => {
-                        promptContent += `\n\n${index + 1}. From: ${
-                            email.from
-                        }`;
-                        promptContent += `\n   Subject: ${email.subject}`;
-                        promptContent += `\n   Date: ${email.date}`;
-                        if (email.snippet) {
-                            promptContent += `\n   Snippet: ${email.snippet}`;
-                        }
-                    });
-                }
-                break;
-
-            case LLMEmailActionType.COUNT_EMAILS:
-                promptContent = `I counted your emails based on your criteria. Found ${result.counts} emails.`;
-                break;
-
-            case LLMEmailActionType.VIEW_EMAIL:
-                if (result.email) {
-                    promptContent = `Here is the email you requested:\n\n`;
-                    promptContent += `From: ${result.email.from}\n`;
-                    promptContent += `To: ${result.email.to}\n`;
-                    promptContent += `Subject: ${result.email.subject}\n`;
-                    promptContent += `Date: ${result.email.date}\n\n`;
-                    promptContent += `${
-                        result.email.bodyText ||
-                        result.email.bodyHtml ||
-                        "No content available"
-                    }`;
-                } else {
-                    promptContent = `Could not find the requested email.`;
-                }
-                break;
-
-            case LLMEmailActionType.SEND_EMAIL:
-                promptContent = `Email has been sent to ${
-                    result.to
-                } with subject "${result.subject || "(No Subject)"}".`;
-                break;
-
-            default:
-                promptContent = `The operation completed but I'm not sure how to format the result: ${JSON.stringify(
-                    result
-                )}`;
-        }
-
-        try {
-            const response = await this.http.post(this.apiUrl, {
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${this.apiKey}`,
-                },
-                data: {
-                    input: `You are an email assistant. Format this information into a friendly, conversational response: ${promptContent}`,
-                    temperature: 0.7,
-                    max_tokens: 500,
-                },
-            });
-
-            if (response.statusCode !== 200 || !response.content) {
-                return promptContent; // Fall back to unformatted content
-            }
-
-            const data = JSON.parse(response.content);
-            return typeof data.output === "string"
-                ? data.output
-                : promptContent;
+            return summary;
         } catch (error) {
             this.logger.error(
-                `LLMService.formatTaskResult -> Error: ${error.message}`
+                `LLMService.generateSummary -> Error generating summary: ${error}`
             );
-            return promptContent; // Fall back to unformatted content
-        }
-    }
-
-    // /**
-    //  * Process a summarization request
-    //  */
-    // public async processSummarizeTask(
-    //     taskRequest: string
-    // ): Promise<ISummarizeParams> {
-    //     this.logger.debug(
-    //         `LLMService.processSummarizeTask -> Processing task: ${taskRequest}`
-    //     );
-
-    //     const prompt = `You are an assistant that helps extract structured parameters from user requests to summarize chat messages.
-
-    //         Based on the user's instruction, extract the following parameters:
-    //         1. The time frame of messages to summarize (today, this week, specific date range, unread messages)
-    //         2. The participants whose messages should be included (specific usernames, if mentioned)
-    //         3. The email recipient (if mentioned)
-    //         4. The user's intention or specific request
-
-    //         For the request: "${taskRequest}"
-
-    //         Respond in this JSON format only:
-    //         {
-    //         "action": "summarize",
-    //         "timeframe": {
-    //             "type": "today" | "week" | "custom" | "unread",
-    //             "startDate": "YYYY-MM-DD" (optional, only for custom timeframe),
-    //             "endDate": "YYYY-MM-DD" (optional, only for custom timeframe)
-    //         },
-    //         "participants": ["username1", "username2"] (optional, only if specific users are mentioned),
-    //         "recipient_email": "email@example.com" (optional, only if an email recipient is mentioned),
-    //         "user_intention": "brief description of what the user wants" (optional)
-    //         }
-
-    //         VERY IMPORTANT:
-    //         - If no timeframe is specified, default to "today"
-    //         - Parse references to users like "@username" and extract just the username
-    //         - Only include parameters that were actually mentioned in the request
-    //         - Extract email addresses accurately when present
-    //         - For dates, convert relative terms (like "last week", "yesterday") to actual date ranges`;
-
-    //     try {
-    //         const response = await this.http.post(this.apiUrl, {
-    //             headers: {
-    //                 "Content-Type": "application/json",
-    //                 Authorization: `Bearer ${this.apiKey}`,
-    //             },
-    //             data: {
-    //                 input: prompt,
-    //                 temperature: 0.1,
-    //                 max_tokens: 1000,
-    //             },
-    //         });
-
-    //         if (response.statusCode !== 200) {
-    //             const errorContent =
-    //                 typeof response.content === "string"
-    //                     ? response.content
-    //                     : "No content returned";
-    //             this.logger.error(
-    //                 `LLMService.processSummarizeTask -> Error: ${errorContent}`
-    //             );
-    //             throw new Error(
-    //                 `LLM API returned status ${response.statusCode}`
-    //             );
-    //         }
-
-    //         if (!response.content) {
-    //             throw new Error("Empty response from LLM API");
-    //         }
-
-    //         const data = JSON.parse(response.content);
-    //         if (!data.output) {
-    //             throw new Error("Invalid response from LLM API");
-    //         }
-
-    //         // Extract the JSON from the response
-    //         const jsonMatch = data.output.match(/\{[\s\S]*\}/);
-    //         if (!jsonMatch) {
-    //             throw new Error("Could not extract JSON from LLM response");
-    //         }
-
-    //         const llmResponse = JSON.parse(jsonMatch[0]);
-
-    //         // Set defaults if timeframe is missing
-    //         if (!llmResponse.timeframe) {
-    //             llmResponse.timeframe = { type: "today" };
-    //         }
-
-    //         return llmResponse as ISummarizeParams;
-    //     } catch (error) {
-    //         this.logger.error(
-    //             `LLMService.processSummarizeTask -> Error: ${error.message}`
-    //         );
-    //         // Return a default structure on error
-    //         return {
-    //             action: "summarize",
-    //             timeframe: { type: "today" },
-    //         };
-    //     }
-    // }
-
-    // public async processSummarizeTask(
-    //     taskRequest: string
-    // ): Promise<ISummarizeParams> {
-    //     this.logger.debug(
-    //         `LLMService.processSummarizeTask -> Processing task: ${taskRequest}`
-    //     );
-
-    //     const prompt = `You are an assistant that extracts structured parameters from user instructions for summarizing chat messages.
-    //         Extract the following from the instruction:
-    //         - Time frame (e.g., "today", "this week", a custom date range, or "unread"). If not specified, default to "today".
-    //         - Participants (if mentioned, extract usernames without "@" symbols).
-    //         - Email recipient (if mentioned).
-    //         - A brief description of the user’s request.
-
-    //         Instruction: "${taskRequest}"
-
-    //         Respond strictly in JSON format. For example:
-    //         {
-    //         "action": "summarize",
-    //         "timeframe": {"type": "week", "startDate": "2025-03-20", "endDate": "2025-03-26"},
-    //         "participants": ["user1", "user2"],
-    //         "recipient_email": "p@gmail.com",
-    //         "user_intention": "Summarize weekly chat messages and email them"
-    //         }`;
-
-    //     try {
-    //         const body = {
-    //             messages: [
-    //                 {
-    //                     role: "system",
-    //                     content: prompt,
-    //                 },
-    //             ],
-    //             temperature: 0.1,
-    //             max_tokens: 1000,
-    //         };
-
-    //         const response = await this.http.post(this.apiUrl, {
-    //             headers: {
-    //                 "Content-Type": "application/json",
-    //                 Authorization: `Bearer ${this.apiKey}`,
-    //             },
-    //             content: JSON.stringify(body),
-    //         });
-
-    //         if (response.statusCode !== 200) {
-    //             const errorContent =
-    //                 typeof response.content === "string"
-    //                     ? response.content
-    //                     : "No content returned";
-    //             this.logger.error(
-    //                 `LLMService.processSummarizeTask -> Error: ${errorContent}`
-    //             );
-    //             throw new Error(
-    //                 `LLM API returned status ${response.statusCode}`
-    //             );
-    //         }
-
-    //         if (!response.content) {
-    //             throw new Error("Empty response from LLM API");
-    //         }
-
-    //         const data = JSON.parse(response.content);
-    //         if (
-    //             !data ||
-    //             !data.choices ||
-    //             !data.choices[0] ||
-    //             !data.choices[0].message ||
-    //             !data.choices[0].message.content
-    //         ) {
-    //             throw new Error("Invalid response format from LLM API");
-    //         }
-
-    //         const outputText = data.choices[0].message.content;
-    //         const jsonMatch = outputText.match(/\{[\s\S]*\}/);
-    //         if (!jsonMatch) {
-    //             throw new Error("Could not extract JSON from LLM response");
-    //         }
-
-    //         const llmResponse = JSON.parse(jsonMatch[0]);
-    //         if (!llmResponse.timeframe) {
-    //             llmResponse.timeframe = { type: "today" };
-    //         }
-
-    //         return llmResponse as ISummarizeParams;
-    //     } catch (error: any) {
-    //         this.logger.error(
-    //             `LLMService.processSummarizeTask -> Error: ${error.message}`
-    //         );
-    //         return {
-    //             action: "summarize",
-    //             timeframe: { type: "today" },
-    //         };
-    //     }
-    // }
-
-    public async processSummarizeTask(
-        taskRequest: string
-    ): Promise<ISummarizeParams> {
-        this.logger.debug(
-            `LLMService.processSummarizeTask -> Processing task: ${taskRequest}`
-        );
-
-        const prompt = `You are an assistant that extracts structured parameters from user instructions for summarizing chat messages.
-            Extract the following from the instruction:
-            - Time frame (e.g., "today", "this week", a custom date range, or "unread"). If not specified, default to "today".
-            - Participants (if mentioned, extract usernames without the "@" symbol).
-            - Email recipient (if mentioned).
-            - A brief description of the user’s request.
-
-            Instruction: "${taskRequest}"
-
-            Respond strictly in JSON format. For example:
-            {
-            "action": "summarize",
-            "timeframe": { "type": "week", "startDate": "YYYY-MM-DD", "endDate": "YYYY-MM-DD" },
-            "participants": ["username1", "username2"],
-            "recipient_email": "email@example.com",
-            "user_intention": "Summarize weekly chat messages and email them"
-            }`;
-
-        try {
-            // Use 'input' instead of 'messages'
-            const body = {
-                input: prompt,
-                stop: ["<|eot_id|>", "<|end_of_text|>", "<|eom_id|>"],
-                temperature: 0.1,
-                max_tokens: 1000,
-            };
-
-            const response = await this.http.post(this.apiUrl, {
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${this.apiKey}`,
-                },
-                content: JSON.stringify(body),
-            });
-
-            if (response.statusCode !== 200) {
-                const errorContent =
-                    typeof response.content === "string"
-                        ? response.content
-                        : "No content returned";
-                this.logger.error(
-                    `LLMService.processSummarizeTask -> Error: ${errorContent}`
-                );
-                throw new Error(
-                    `LLM API returned status ${response.statusCode}`
-                );
-            }
-
-            if (!response.content) {
-                throw new Error("Empty response from LLM API");
-            }
-
-            const data = JSON.parse(response.content);
-            if (!data.output) {
-                throw new Error("Invalid response from LLM API");
-            }
-
-            // Extract the JSON from the response
-            const jsonMatch = data.output.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) {
-                throw new Error("Could not extract JSON from LLM response");
-            }
-
-            const llmResponse = JSON.parse(jsonMatch[0]);
-
-            // Set default timeframe if missing
-            if (!llmResponse.timeframe) {
-                llmResponse.timeframe = { type: "today" };
-            }
-
-            return llmResponse as ISummarizeParams;
-        } catch (error: any) {
-            this.logger.error(
-                `LLMService.processSummarizeTask -> Error: ${error.message}`
-            );
-            // Return a default structure on error
-            return {
-                action: "summarize",
-                timeframe: { type: "today" },
-            };
-        }
-    }
-
-    // /**
-    //  * Generate a summary of messages
-    //  */
-    // public async generateSummary(
-    //     messages: string,
-    //     roomName: string
-    // ): Promise<string> {
-    //     this.logger.debug(`LLMService.generateSummary -> Generating summary`);
-
-    //     const prompt = `You are an assistant that creates comprehensive but concise summaries of chat conversations.
-
-    //         Below is a chat conversation from a room named "${roomName}".
-    //         Create a professional and well-structured summary that captures:
-    //         1. Key topics discussed
-    //         2. Important decisions or agreements made
-    //         3. Action items or tasks assigned to people
-    //         4. Important questions raised and their answers (if available)
-    //         5. Any deadlines or important dates mentioned
-
-    //         Your summary should be well-organized, using bullet points or sections where appropriate,
-    //         and should maintain a professional tone suitable for a business context.
-
-    //         CONVERSATION:
-    //         ${messages}
-
-    //         SUMMARY:`;
-
-    //     try {
-    //         return await this.callLLM(prompt);
-    //     } catch (error) {
-    //         this.logger.error(
-    //             `LLMService.generateSummary -> Error: ${error.message}`
-    //         );
-    //         throw new Error("Failed to generate summary of messages");
-    //     }
-    // }
-
-    /**
-     * Generate a summary of messages
-     */
-    public async generateSummary(
-        messages: string,
-        roomName: string
-    ): Promise<string> {
-        this.logger.debug(`LLMService.generateSummary -> Generating summary`);
-
-        const prompt = `You are an assistant that creates comprehensive but concise summaries of chat conversations.
-
-            Below is a chat conversation from a room named "${roomName}".
-            Create a professional and well-structured summary that captures:
-            1. Key topics discussed
-            2. Important decisions or agreements made
-            3. Action items or tasks assigned
-            4. Important questions raised and their answers (if available)
-            5. Any deadlines or important dates mentioned
-
-            Your summary should be organized (using bullet points or sections) and maintain a professional tone.
-
-            CONVERSATION:
-            ${messages}
-
-            SUMMARY:`;
-
-        try {
-            return await this.callLLM(prompt);
-        } catch (error) {
-            this.logger.error(
-                `LLMService.generateSummary -> Error: ${error.message}`
-            );
-            // Instead of throwing an error, return a default summary template.
-            return `Summary:
-            - We encountered an error generating the summary.
-            - Please refer to the attached conversation details for more information.
-
-            Dear recipient@gmail.com,
-
-            Here’s a summary of our recent discussion in [Channel/Room Name]:
-
-            Key Topics Discussed:
-            [Briefly summarize main topics]
-
-            Important Decisions & Agreements:
-            [Decision 1]
-            [Decision 2]
-
-            Action Items:
-            [Person 1] to complete [Task] by [Deadline]
-            [Person 2] to follow up on [Task] with [Team/Person]
-
-            `;
-        }
-    }
-
-    /**
-     * Map string action to enum
-     */
-    private mapActionType(action: string): LLMEmailActionType {
-        switch (action.toLowerCase()) {
-            case "search-emails":
-                return LLMEmailActionType.SEARCH_EMAILS;
-            case "count-emails":
-                return LLMEmailActionType.COUNT_EMAILS;
-            case "view-email":
-                return LLMEmailActionType.VIEW_EMAIL;
-            case "send-email":
-                return LLMEmailActionType.SEND_EMAIL;
-            default:
-                return LLMEmailActionType.UNKNOWN;
+            return "Failed to generate summary due to an error.";
         }
     }
 }

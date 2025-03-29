@@ -15,7 +15,6 @@ import { ListCommand } from "../commands/ListCommand";
 import { SendEmailCommand } from "../commands/SendEmailCommand";
 import { LastEmailCommand } from "../commands/LastEmailCommand";
 import { HelpCommand } from "../commands/HelpCommand";
-import { SummarizeCommand } from "../commands/SummarizeCommand";
 import { SearchEmailCommand } from "../commands/SearchEmailCommand";
 import { ViewEmailCommand } from "../commands/ViewEmailCommand";
 import { CountEmailCommand } from "../commands/CountEmailCommand";
@@ -61,11 +60,6 @@ export class CommandHandler implements ISlashCommand {
             case 'lastemail':
                 await new LastEmailCommand(this.app).execute(
                     sender, room, read, modify, http, persistence
-                );
-                break;
-            case 'summarize':
-                await new SummarizeCommand(this.app).execute(
-                    args, sender, room, read, modify, http, persistence
                 );
                 break;
             case 'add':
@@ -117,22 +111,23 @@ export class CommandHandler implements ISlashCommand {
                 );
                 break;
             default:
-                await this.handleLLMTask(subcommand, args, sender, room, read, modify, http, persistence);
+                // Handle as natural language request
+                await this.handleNaturalLanguageRequest(subcommand, args, sender, room, read, modify, http, persistence);
                 break;
         }
     }
 
-    private async handleLLMTask(
-        task: string, 
-        args: Array<string>, 
-        sender, 
-        room, 
+    private async handleNaturalLanguageRequest(
+        initialCommand: string,
+        args: Array<string>,
+        sender,
+        room,
         read: IRead,
         modify: IModify,
         http: IHttp,
         persistence: IPersistence
     ): Promise<void> {
-        const fullTask = [task, ...args].join(' ');
+        const fullRequest = [initialCommand, ...args].join(' ');
 
         // Show processing message
         const processingMessage = modify
@@ -140,7 +135,7 @@ export class CommandHandler implements ISlashCommand {
             .startMessage()
             .setSender(sender)
             .setRoom(room)
-            .setText(`Processing your email task: "${fullTask}"\nPlease wait...`);
+            .setText(`Processing your request: "${fullRequest}"\nPlease wait...`);
 
         await modify.getCreator().finish(processingMessage);
 
@@ -156,8 +151,10 @@ export class CommandHandler implements ISlashCommand {
                 this.app
             );
 
-            // Process the task
-            const result = await llmTaskHandler.processTask(fullTask, sender);
+            // Process the natural language request
+            const result = await llmTaskHandler.processTask(fullRequest, sender);
+
+            this.app.getLogger().debug(`LLMTaskHandler.processTask -> Result: ${JSON.stringify(result)}`);
 
             // Send the result message
             const resultMessage = modify
@@ -173,14 +170,14 @@ export class CommandHandler implements ISlashCommand {
             await modify.getCreator().finish(resultMessage);
         } catch (error) {
             // Handle any unexpected errors
-            this.app.getLogger().error('Error in LLM task handler:', error);
-            
+            this.app.getLogger().error('Error processing natural language request:', error);
+
             const errorMessage = modify
                 .getCreator()
                 .startMessage()
                 .setSender(sender)
                 .setRoom(room)
-                .setText(`❌ An unexpected error occurred: ${error.message}\n\nPlease try again later.`);
+                .setText(`❌ An unexpected error occurred: ${error.message}\n\nPlease try again with a more specific request or use one of the standard commands (try /rocket-mail help).`);
 
             await modify.getCreator().finish(errorMessage);
         }
