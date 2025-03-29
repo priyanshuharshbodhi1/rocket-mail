@@ -1,9 +1,6 @@
 import { ISetting, SettingType } from '@rocket.chat/apps-engine/definition/settings';
-// import { SettingsIds } from '../enums/SettingsIds';
-// import { EmailProviders } from '../enums/EmailProviders';
 
-// IMP:Shows some error in terminal when updating app. Will be fixing it later.
-
+// Define enums directly in this file to avoid import issues during packaging
 export enum EmailProviders {
     GMAIL = 'gmail',
     OUTLOOK = 'outlook',
