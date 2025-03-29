@@ -73,74 +73,66 @@ export class ReportCommand {
                     persistence
                 );
 
-                // Get the maximum report limit from settings or use default
-                const reportSettings = await read.getEnvironmentReader().getSettings().getById('rocket_mail_report_max_emails');  //debug here...
-                const maxEmails = reportSettings ? (reportSettings.value as number) : 15;
+                // Generate comprehensive email report
+                const reportData = await emailService.generateEmailReport(startDateStr, endDateStr);
 
-                // Search for emails in the date range
+                // Get recent emails to show in the report
                 const searchParams = {
                     startDate: startDateStr,
                     endDate: endDateStr,
-                    limit: maxEmails
+                    limit: 5 // Just show a few recent emails
                 };
 
-                const emails = await emailService.searchEmails(searchParams);
+                const recentEmails = await emailService.searchEmails(searchParams);
 
-                // Count emails by sender domain
-                const domainCounts: Record<string, number> = {};
-                emails.forEach(email => {
-                    const senderMatch = email.from.match(/@([^>]+)/) || email.from.match(/@(.+)/);
-                    if (senderMatch) {
-                        const domain = senderMatch[1].trim();
-                        domainCounts[domain] = (domainCounts[domain] || 0) + 1;
-                    }
-                });
-
-                // Count emails by day
-                const dayCounts = await emailService.countEmails({
-                    startDate: startDateStr,
-                    endDate: endDateStr
-                });
-
-                // Generate report
+                // Format the report
                 let report = `# 📈 Email Report: Last ${numDays} Days\n\n`;
 
-                // Summary section
-                report += `### Summary\n`;
+                // Statistics section
+                report += `### 📊 Statistics\n`;
                 report += `📆 **Period**: ${startDateStr} to ${endDateStr}\n`;
-                report += `📧 **Total Emails**: ${emails.length}\n\n`;
+                report += `📥 **Total Emails Received**: ${reportData.total_mails_received}\n`;
+                report += `📤 **Emails Sent**: ${reportData.mails_sent}\n`;
+                report += `🔔 **Unread Emails**: ${reportData.unread_mails}\n`;
+                report += `📎 **Emails with Attachments**: ${reportData.mails_with_attachments}\n`;
+                report += `⏰ **Emails with Deadlines**: ${reportData.mails_with_deadlines}\n\n`;
 
-                // Daily breakdown section
-                report += `### Daily Breakdown\n`;
-                for (const [date, count] of Object.entries(dayCounts)) {
-                    report += `- **${date}**: ${count} emails\n`;
+                // Email categories section
+                if (reportData.mails_by_category && Object.keys(reportData.mails_by_category).length > 0) {
+                    report += `### 📋 Email Categories\n`;
+                    for (const [category, count] of Object.entries(reportData.mails_by_category)) {
+                        // Capitalize the first letter of the category
+                        const formattedCategory = category.charAt(0).toUpperCase() + category.slice(1);
+                        report += `- **${formattedCategory}**: ${count} emails\n`;
+                    }
+                    report += `\n`;
                 }
-                report += `\n`;
 
-                // Domain breakdown section
-                report += `### Top Sending Domains\n`;
-                const sortedDomains = Object.entries(domainCounts)
-                    .sort((a, b) => b[1] - a[1])
-                    .slice(0, 5);
+                // Daily breakdown section (if we have it)
+                if (numDays > 1) {
+                    const dayCounts = await emailService.countEmails({
+                        startDate: startDateStr,
+                        endDate: endDateStr
+                    });
 
-                for (const [domain, count] of sortedDomains) {
-                    report += `- **${domain}**: ${count} emails\n`;
+                    if (Object.keys(dayCounts).length > 0) {
+                        report += `### 📅 Daily Breakdown\n`;
+                        for (const [date, count] of Object.entries(dayCounts)) {
+                            report += `- **${date}**: ${count} emails\n`;
+                        }
+                        report += `\n`;
+                    }
                 }
-                report += `\n`;
 
                 // Recent emails section
-                report += `### Recent Emails\n`;
-                if (emails.length > 0) {
-                    for (let i = 0; i < Math.min(5, emails.length); i++) {
-                        const email = emails[i];
+                report += `### 📬 Recent Emails\n`;
+                if (recentEmails.length > 0) {
+                    for (let i = 0; i < recentEmails.length; i++) {
+                        const email = recentEmails[i];
                         report += `### ${i+1}. ${email.subject}\n`;
                         report += `**From**: ${email.from}\n`;
                         report += `**Date**: ${email.date}\n`;
                         report += `**ID**: ${email.id}\n\n`;
-                    }
-
-                    if (emails.length > 5) {
-                        report += `*...and ${emails.length - 5} more*\n\n`;
                     }
 
                     report += `To view a specific email, use \`/rocket-mail view <email_id>\`\n`;

@@ -307,6 +307,152 @@ export class GmailService {
     }
 
     /**
+     * Generate comprehensive email report statistics for the given period
+     */
+    public async generateEmailReport(startDate: string, endDate: string): Promise<Record<string, any>> {
+        this.logger.debug(`GmailService.generateEmailReport -> Generating report from ${startDate} to ${endDate}`);
+
+        try {
+            const accessToken = await this.getAccessToken();
+            const report: Record<string, any> = {};
+
+            // Set date range for queries
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const startFormatted = `${start.getFullYear()}/${start.getMonth() + 1}/${start.getDate()}`;
+            const endFormatted = `${end.getFullYear()}/${end.getMonth() + 1}/${end.getDate() + 1}`;
+
+            // 1. Count total emails received
+            const receivedQuery = `in:inbox after:${startFormatted} before:${endFormatted}`;
+            const receivedResponse = await this.http.get('https://gmail.googleapis.com/gmail/v1/users/me/messages', {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                params: {
+                    q: receivedQuery
+                }
+            });
+
+            if (receivedResponse.statusCode === 200 && receivedResponse.content) {
+                const receivedData = JSON.parse(receivedResponse.content);
+                report.total_mails_received = receivedData.resultSizeEstimate || 
+                    (receivedData.messages ? receivedData.messages.length : 0);
+            } else {
+                report.total_mails_received = 0;
+            }
+
+            // 2. Count unread emails
+            const unreadQuery = `in:inbox is:unread after:${startFormatted} before:${endFormatted}`;
+            const unreadResponse = await this.http.get('https://gmail.googleapis.com/gmail/v1/users/me/messages', {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                params: {
+                    q: unreadQuery
+                }
+            });
+
+            if (unreadResponse.statusCode === 200 && unreadResponse.content) {
+                const unreadData = JSON.parse(unreadResponse.content);
+                report.unread_mails = unreadData.resultSizeEstimate || 
+                    (unreadData.messages ? unreadData.messages.length : 0);
+            } else {
+                report.unread_mails = 0;
+            }
+
+            // 3. Count sent emails
+            const sentQuery = `in:sent after:${startFormatted} before:${endFormatted}`;
+            const sentResponse = await this.http.get('https://gmail.googleapis.com/gmail/v1/users/me/messages', {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                params: {
+                    q: sentQuery
+                }
+            });
+
+            if (sentResponse.statusCode === 200 && sentResponse.content) {
+                const sentData = JSON.parse(sentResponse.content);
+                report.mails_sent = sentData.resultSizeEstimate || 
+                    (sentData.messages ? sentData.messages.length : 0);
+            } else {
+                report.mails_sent = 0;
+            }
+
+            // 4. Count emails with attachments
+            const attachmentQuery = `in:inbox has:attachment after:${startFormatted} before:${endFormatted}`;
+            const attachmentResponse = await this.http.get('https://gmail.googleapis.com/gmail/v1/users/me/messages', {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                params: {
+                    q: attachmentQuery
+                }
+            });
+
+            if (attachmentResponse.statusCode === 200 && attachmentResponse.content) {
+                const attachmentData = JSON.parse(attachmentResponse.content);
+                report.mails_with_attachments = attachmentData.resultSizeEstimate || 
+                    (attachmentData.messages ? attachmentData.messages.length : 0);
+            } else {
+                report.mails_with_attachments = 0;
+            }
+
+            // 5. Count emails with deadline-related words in the subject
+            const deadlineQuery = `in:inbox (subject:"deadline" OR subject:"due" OR subject:"by tomorrow") after:${startFormatted} before:${endFormatted}`;
+            const deadlineResponse = await this.http.get('https://gmail.googleapis.com/gmail/v1/users/me/messages', {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                params: {
+                    q: deadlineQuery
+                }
+            });
+
+            if (deadlineResponse.statusCode === 200 && deadlineResponse.content) {
+                const deadlineData = JSON.parse(deadlineResponse.content);
+                report.mails_with_deadlines = deadlineData.resultSizeEstimate || 
+                    (deadlineData.messages ? deadlineData.messages.length : 0);
+            } else {
+                report.mails_with_deadlines = 0;
+            }
+
+            // 6. Count emails by category (using Gmail's categories)
+            report.mails_by_category = {};
+
+            // Common Gmail categories
+            const categories = ['primary', 'social', 'promotions', 'updates', 'forums'];
+            
+            for (const category of categories) {
+                const categoryQuery = `in:inbox category:${category} after:${startFormatted} before:${endFormatted}`;
+                const categoryResponse = await this.http.get('https://gmail.googleapis.com/gmail/v1/users/me/messages', {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    params: {
+                        q: categoryQuery
+                    }
+                });
+
+                if (categoryResponse.statusCode === 200 && categoryResponse.content) {
+                    const categoryData = JSON.parse(categoryResponse.content);
+                    const count = categoryData.resultSizeEstimate || 
+                        (categoryData.messages ? categoryData.messages.length : 0);
+                    
+                    if (count > 0) {
+                        report.mails_by_category[category] = count;
+                    }
+                }
+            }
+
+            return report;
+        } catch (error) {
+            this.logger.error(`GmailService.generateEmailReport -> Error: ${error}`);
+            throw new Error(`Failed to generate email report: ${error.message}`);
+        }
+    }
+
+    /**
      * Get full content of a specific email by ID
      */
     public async getEmailById(emailId: string): Promise<IEmailDetails> {

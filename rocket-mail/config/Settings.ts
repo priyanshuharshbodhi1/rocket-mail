@@ -17,7 +17,6 @@ export enum SettingsIds {
     OAuthRedirectUri = 'oauth_redirect_uri',
     ReportEnabled = 'rocket_mail_report_enabled',
     ReportTime = 'rocket_mail_report_time',
-    ReportMaxEmails = 'rocket_mail_report_max_emails',
 }
 
 export const settings: Array<ISetting> = [
@@ -99,17 +98,8 @@ export const settings: Array<ISetting> = [
         packageValue: '09:00',
         required: true,
         public: false,
-        i18nLabel: 'Automatic Report Time',
-        i18nDescription: 'Time to send automatic daily reports (HH:MM in 24-hour format)',
-    },
-    {
-        id: SettingsIds.ReportMaxEmails,
-        type: SettingType.NUMBER,
-        packageValue: 15,
-        required: true,
-        public: false,
-        i18nLabel: 'Maximum Emails in Report',
-        i18nDescription: 'Maximum number of emails to show in reports',
+        i18nLabel: 'Daily Report Time',
+        i18nDescription: 'Time of day to send automatic reports (24-hour format, e.g. 09:00)',
     },
     {
         id: SettingsIds.DeepInfraApiKey,
