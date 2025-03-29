@@ -11,7 +11,7 @@ import {
 import { RocketMailApp } from '../RocketMailApp';
 import { OAuthService } from '../services/OAuthService';
 import { getEmailSettings } from '../config/SettingsManager';
-import { EmailProviders } from '../config/Settings';
+import { EmailProviders } from '../enums/EmailProviders';
 
 export class LoginCommand implements ISlashCommand {
     public command = 'login';
@@ -41,7 +41,7 @@ export class LoginCommand implements ISlashCommand {
         try {
             // Get email settings to determine provider
             const settings = await getEmailSettings(read.getEnvironmentReader().getSettings());
-            
+
             // Initialize OAuth service
             const oauthSettings = {
                 get: async (key: string) => {
@@ -96,7 +96,7 @@ export class LoginCommand implements ISlashCommand {
         try {
             // Generate the authorization URL
             const authUrl = await oauthService.getAuthorizationUrl(userId);
-            
+
             // Send message with auth URL as a clickable link
             messageBuilder.setText(`🔐 Connect your Gmail account: [Click here to Login](${authUrl})`);
             await modify.getCreator().finish(messageBuilder);

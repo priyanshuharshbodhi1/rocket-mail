@@ -2,7 +2,8 @@ import { IHttp, ILogger, IPersistence, IRead } from '@rocket.chat/apps-engine/de
 import { IEmailSettings } from '../interfaces/IEmailService';
 import { GmailService } from './GmailService';
 import { OAuthService } from './OAuthService';
-import { EmailProviders } from '../config/Settings';
+import { EmailProviders } from '../enums/EmailProviders';
+// import { SettingsIds } from '../enums/SettingsIds';
 
 export class EmailServiceFactory {
     /**
@@ -17,7 +18,7 @@ export class EmailServiceFactory {
         persistence: IPersistence
     ): Promise<GmailService> {
         logger.debug('EmailServiceFactory.createEmailService -> Creating service for provider:', settings.provider);
-        
+
         if (settings.provider === EmailProviders.GMAIL) {
             // Create the OAuth service
             const oauthSettings = {
@@ -36,7 +37,7 @@ export class EmailServiceFactory {
                 try {
                     // Generate authorization URL
                     const authUrl = await oauthService.getAuthorizationUrl(userId);
-                    
+
                     // Simply provide a link for authentication
                     throw new Error(`You need to authenticate with Gmail first. Use /rocket-mail login command or [Click here to Login](${authUrl})`);
                 } catch (error) {

@@ -1,4 +1,6 @@
-import { EmailProviders } from '../config/Settings';
+// import { EmailProviders } from '../config/Settings';
+import { EmailProviders } from '../enums/EmailProviders';
+
 
 export interface IEmailSettings {
     email: string;

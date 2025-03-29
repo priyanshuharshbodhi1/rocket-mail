@@ -1,6 +1,6 @@
 import {
     IHttp,
-    IModify, 
+    IModify,
     IRead,
     IPersistence
 } from "@rocket.chat/apps-engine/definition/accessors";
@@ -32,7 +32,7 @@ export class LastEmailCommand {
             const settings = await getEmailSettings(
                 read.getEnvironmentReader().getSettings()
             );
-            
+
             try {
                 // Use the factory to create the appropriate email service
                 const emailService = await EmailServiceFactory.createEmailService(
@@ -54,7 +54,7 @@ export class LastEmailCommand {
                     .setRoom(room);
 
                 resultMessageBuilder.setText(
-                    `📧 **Last Email**\n\n` +
+                    `📧 **Last Email In Inbox:**\n\n` +
                     `**From**: ${lastEmail.from}\n` +
                     `**Date**: ${lastEmail.date}\n` +
                     `**Subject**: ${lastEmail.subject}\n\n` +
@@ -62,7 +62,7 @@ export class LastEmailCommand {
                         lastEmail.content?.length > 1000 ? "..." : ""
                     }`
                 );
-                
+
                 await modify.getCreator().finish(resultMessageBuilder);
             } catch (error) {
                 // Check if this is an authentication error
@@ -72,7 +72,7 @@ export class LastEmailCommand {
                         .startMessage()
                         .setSender(sender)
                         .setRoom(room);
-                    
+
                     authErrorMessage.setText(`🔒 ${error.message}`);
                     await modify.getCreator().finish(authErrorMessage);
                 } else {
@@ -81,13 +81,13 @@ export class LastEmailCommand {
             }
         } catch (error) {
             this.app.getLogger().error("Error retrieving email:", error);
-            
+
             const errorMessage = modify
                 .getCreator()
                 .startMessage()
                 .setSender(sender)
                 .setRoom(room);
-            
+
             errorMessage.setText(`❌ Error retrieving email: ${error.message}`);
             await modify.getCreator().finish(errorMessage);
         }
