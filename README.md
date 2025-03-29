@@ -148,19 +148,11 @@ Simply type `/rocket-mail` followed by your request in plain English. The app un
 - Check logs in Rocket.Chat Administration > View Logs
 - For more detailed logs, set the app's log level to "Debug" in Rocket.Chat Administration > Apps > Rocket Mail > Settings
 
-### Testing
-
-Run tests with:
-```bash
-npm test
-```
 
 ## Features in Development
 
 - Support for additional email providers (Outlook, Yahoo, etc.) OR Use SMTP/IMAP protocol for any email provider.
-- ```
-/rocket-mail <your request in natural language>
-```
+- /rocket-mail <your request in natural language> : API request to llm model in deepinfra needs debugging, Before refactoring the codebase it worked properly.
 - Advanced analytics and insights
 - Email attachments retrival
 - 
