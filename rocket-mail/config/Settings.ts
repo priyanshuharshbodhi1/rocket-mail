@@ -67,7 +67,7 @@ export const settings: Array<ISetting> = [
     },
     {
         id: SettingsIds.OAuthClientSecret,
-        type: SettingType.STRING,
+        type: SettingType.PASSWORD,
         packageValue: '',
         required: true,
         public: false,
