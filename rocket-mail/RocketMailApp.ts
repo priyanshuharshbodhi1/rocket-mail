@@ -13,10 +13,14 @@ import { CommandHandler } from './handlers/CommandHandler';
 import { OAuthEndpoint } from './handlers/OAuthEndpoint';
 import { SettingType } from '@rocket.chat/apps-engine/definition/settings';
 import { ApiSecurity, ApiVisibility } from '@rocket.chat/apps-engine/definition/api';
+import { SettingsUtil } from './utils/SettingsUtil';
 
 export class RocketMailApp extends App {
+    private settingsUtil: SettingsUtil;
+
     constructor(info: IAppInfo, logger: ILogger, accessors: IAppAccessors) {
         super(info, logger, accessors);
+        this.settingsUtil = new SettingsUtil(this);
     }
 
     /**
@@ -72,76 +76,51 @@ export class RocketMailApp extends App {
 
     /**
      * Get the persistence accessor
-     * Note: Direct persistence access is not available from the App class.
-     * Use the persistence provided in command and endpoint methods instead.
+     * Provides an accessor to write data to the App's persistent storage. A App only has access to its own persistent storage and does not have access to any other App's.
      */
     public getPersistence(): IPersistence {
-        throw new Error('IPersistence is not directly accessible. Use the persistence provided in command and endpoint methods.');
+        throw new Error('Provides an accessor to write data to the App\'s persistent storage. A App only has access to its own persistent storage and does not have access to any other App\'s.');
     }
 
     /**
      * Get the read accessor
      */
     public getRead(): IRead {
-        return this.getAccessors().reader;
+        return this.settingsUtil.getRead();
     }
 
     /**
      * Get the persistence reader directly
      */
     public getPersistenceReader(): IPersistenceRead {
-        return this.getRead().getPersistenceReader();
+        return this.settingsUtil.getPersistenceReader();
     }
 
     /**
      * Get DeepInfra API key from settings
      */
     public async getDeepInfraApiKey(): Promise<string> {
-        try {
-            const value = await this.getAccessors().environmentReader.getSettings().getValueById('rocket_mail_deepinfra_api_key');
-            return value ? String(value) : '';
-        } catch (error) {
-            this.getLogger().error('Error getting DeepInfra API key:', error);
-            return '';
-        }
+        return this.settingsUtil.getDeepInfraApiKey();
     }
 
     /**
      * Get OAuth client ID from settings
      */
     public async getOAuthClientId(): Promise<string> {
-        try {
-            const value = await this.getAccessors().environmentReader.getSettings().getValueById('oauth_client_id');
-            return value ? String(value) : '';
-        } catch (error) {
-            this.getLogger().error('Error getting OAuth client ID:', error);
-            return '';
-        }
+        return this.settingsUtil.getOAuthClientId();
     }
 
     /**
      * Get OAuth client secret from settings
      */
     public async getOAuthClientSecret(): Promise<string> {
-        try {
-            const value = await this.getAccessors().environmentReader.getSettings().getValueById('oauth_client_secret');
-            return value ? String(value) : '';
-        } catch (error) {
-            this.getLogger().error('Error getting OAuth client secret:', error);
-            return '';
-        }
+        return this.settingsUtil.getOAuthClientSecret();
     }
 
     /**
      * Get OAuth redirect URI from settings
      */
     public async getOAuthRedirectUri(): Promise<string> {
-        try {
-            const value = await this.getAccessors().environmentReader.getSettings().getValueById('oauth_redirect_uri');
-            return value ? String(value) : '';
-        } catch (error) {
-            this.getLogger().error('Error getting OAuth redirect URI:', error);
-            return '';
-        }
+        return this.settingsUtil.getOAuthRedirectUri();
     }
 }

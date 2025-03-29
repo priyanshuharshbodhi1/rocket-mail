@@ -16,6 +16,7 @@ import {
     RocketChatAssociationRecord,
 } from "@rocket.chat/apps-engine/definition/metadata";
 import { EmailTaskHandler } from "./EmailTaskHandler";
+import { SettingsUtil } from '../utils/SettingsUtil';
 
 interface IEmailContact {
     name: string;
@@ -95,9 +96,11 @@ export class RocketMailCommand implements ISlashCommand {
     public i18nParamsExample = "<subcommand>";
     public providesPreview = false;
     private contactManager: ContactManager;
+    private settingsUtil: SettingsUtil;
 
     constructor(private readonly app: RocketMailApp) {
         this.contactManager = new ContactManager(app);
+        this.settingsUtil = new SettingsUtil(app);
     }
 
     public async executor(
@@ -212,7 +215,7 @@ export class RocketMailCommand implements ISlashCommand {
 
             // Fall back to legacy method if OAuth is not set up
             const settings = await getEmailSettings(
-                read.getEnvironmentReader().getSettings()
+                this.settingsUtil.getRead().getEnvironmentReader().getSettings()
             );
 
             const emailService = new EmailService(
@@ -277,7 +280,7 @@ ${email.content}`
 
         try {
             const settings = await getEmailSettings(
-                read.getEnvironmentReader().getSettings()
+                this.settingsUtil.getRead().getEnvironmentReader().getSettings()
             );
 
             const emailService = new EmailService(
