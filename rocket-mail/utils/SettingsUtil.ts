@@ -1,54 +1,51 @@
 import { IPersistence, IRead, IPersistenceRead } from '@rocket.chat/apps-engine/definition/accessors';
 import { RocketMailApp } from '../RocketMailApp';
 
-export class SettingsUtil {
-    constructor(private readonly app: RocketMailApp) {}
+// Export helper functions instead of a class
+export function getRead(app: RocketMailApp): IRead {
+    return app.getAccessors().reader;
+}
 
-    public getRead(): IRead {
-        return this.app.getAccessors().reader;
+export function getPersistenceReader(app: RocketMailApp): IPersistenceRead {
+    return getRead(app).getPersistenceReader();
+}
+
+export async function getDeepInfraApiKey(app: RocketMailApp): Promise<string> {
+    try {
+        const value = await app.getAccessors().environmentReader.getSettings().getValueById('rocket_mail_deepinfra_api_key');
+        return value ? String(value) : '';
+    } catch (error) {
+        app.getLogger().error('Error getting DeepInfra API key:', error);
+        return '';
     }
+}
 
-    public getPersistenceReader(): IPersistenceRead {
-        return this.getRead().getPersistenceReader();
+export async function getOAuthClientId(app: RocketMailApp): Promise<string> {
+    try {
+        const value = await app.getAccessors().environmentReader.getSettings().getValueById('oauth_client_id');
+        return value ? String(value) : '';
+    } catch (error) {
+        app.getLogger().error('Error getting OAuth client ID:', error);
+        return '';
     }
+}
 
-    public async getDeepInfraApiKey(): Promise<string> {
-        try {
-            const value = await this.app.getAccessors().environmentReader.getSettings().getValueById('rocket_mail_deepinfra_api_key');
-            return value ? String(value) : '';
-        } catch (error) {
-            this.app.getLogger().error('Error getting DeepInfra API key:', error);
-            return '';
-        }
+export async function getOAuthClientSecret(app: RocketMailApp): Promise<string> {
+    try {
+        const value = await app.getAccessors().environmentReader.getSettings().getValueById('oauth_client_secret');
+        return value ? String(value) : '';
+    } catch (error) {
+        app.getLogger().error('Error getting OAuth client secret:', error);
+        return '';
     }
+}
 
-    public async getOAuthClientId(): Promise<string> {
-        try {
-            const value = await this.app.getAccessors().environmentReader.getSettings().getValueById('oauth_client_id');
-            return value ? String(value) : '';
-        } catch (error) {
-            this.app.getLogger().error('Error getting OAuth client ID:', error);
-            return '';
-        }
-    }
-
-    public async getOAuthClientSecret(): Promise<string> {
-        try {
-            const value = await this.app.getAccessors().environmentReader.getSettings().getValueById('oauth_client_secret');
-            return value ? String(value) : '';
-        } catch (error) {
-            this.app.getLogger().error('Error getting OAuth client secret:', error);
-            return '';
-        }
-    }
-
-    public async getOAuthRedirectUri(): Promise<string> {
-        try {
-            const value = await this.app.getAccessors().environmentReader.getSettings().getValueById('oauth_redirect_uri');
-            return value ? String(value) : '';
-        } catch (error) {
-            this.app.getLogger().error('Error getting OAuth redirect URI:', error);
-            return '';
-        }
+export async function getOAuthRedirectUri(app: RocketMailApp): Promise<string> {
+    try {
+        const value = await app.getAccessors().environmentReader.getSettings().getValueById('oauth_redirect_uri');
+        return value ? String(value) : '';
+    } catch (error) {
+        app.getLogger().error('Error getting OAuth redirect URI:', error);
+        return '';
     }
 }

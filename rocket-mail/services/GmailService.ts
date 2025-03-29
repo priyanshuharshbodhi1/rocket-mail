@@ -26,14 +26,14 @@ export class GmailService {
 
         try {
             const accessToken = await this.getAccessToken();
-            
+
             // Create MIME message
             const emailLines: string[] = [];
             emailLines.push(`From: ${emailContent.from}`);
             emailLines.push(`To: ${emailContent.to}`);
             emailLines.push(`Subject: ${emailContent.subject || '(No Subject)'}`);
             emailLines.push('MIME-Version: 1.0');
-            
+
             if (emailContent.html) {
                 emailLines.push('Content-Type: multipart/alternative; boundary="boundary_text"');
                 emailLines.push('');
@@ -93,7 +93,7 @@ export class GmailService {
 
         try {
             const accessToken = await this.getAccessToken();
-            
+
             // First, get the list of messages (just 1)
             const listResponse = await this.http.get('https://gmail.googleapis.com/gmail/v1/users/me/messages', {
                 headers: {
@@ -131,32 +131,32 @@ export class GmailService {
 
         try {
             const accessToken = await this.getAccessToken();
-            
+
             // Build Gmail query string
             let query = 'in:inbox';
-            
+
             if (params.sender) {
                 query += ` from:${params.sender}`;
             }
-            
+
             if (params.subject) {
                 query += ` subject:(${params.subject})`;
             }
-            
+
             if (params.body) {
                 query += ` ${params.body}`;
             }
-            
+
             if (params.startDate) {
                 const startDate = new Date(params.startDate);
                 query += ` after:${startDate.getFullYear()}/${startDate.getMonth() + 1}/${startDate.getDate()}`;
             }
-            
+
             if (params.endDate) {
                 const endDate = new Date(params.endDate);
                 query += ` before:${endDate.getFullYear()}/${endDate.getMonth() + 1}/${endDate.getDate()}`;
             }
-            
+
             const limit = params.limit ? String(params.limit) : '20';
 
             // Get the list of messages
@@ -181,7 +181,7 @@ export class GmailService {
 
             // For each message ID, get the message metadata (not full content)
             const emails: IEmailSummary[] = [];
-            
+
             // Use Promise.all to fetch all message details in parallel
             await Promise.all(listData.messages.slice(0, parseInt(limit)).map(async (message: any) => {
                 try {
@@ -194,15 +194,15 @@ export class GmailService {
                             metadataHeaders: 'From,Subject,Date'
                         }
                     });
-                    
+
                     if (metadataResponse.statusCode === 200 && metadataResponse.content) {
                         const metadata = JSON.parse(metadataResponse.content);
                         const headers = metadata.payload.headers;
-                        
+
                         const fromHeader = headers.find((h: any) => h.name === 'From');
                         const subjectHeader = headers.find((h: any) => h.name === 'Subject');
                         const dateHeader = headers.find((h: any) => h.name === 'Date');
-                        
+
                         emails.push({
                             id: metadata.id,
                             from: fromHeader ? fromHeader.value : 'Unknown',
@@ -215,7 +215,7 @@ export class GmailService {
                     // Continue with other emails
                 }
             }));
-            
+
             return emails;
         } catch (error) {
             this.logger.error(`GmailService.searchEmails -> Error: ${error}`);
@@ -231,21 +231,21 @@ export class GmailService {
 
         try {
             const accessToken = await this.getAccessToken();
-            
+
             // Build Gmail query string
             let query = 'in:inbox';
-            
+
             if (params.sender) {
                 query += ` from:${params.sender}`;
             }
-            
+
             if (params.startDate && params.endDate) {
                 const startDate = new Date(params.startDate);
                 const endDate = new Date(params.endDate);
-                
+
                 query += ` after:${startDate.getFullYear()}/${startDate.getMonth() + 1}/${startDate.getDate()}`;
                 query += ` before:${endDate.getFullYear()}/${endDate.getMonth() + 1}/${endDate.getDate() + 1}`;
-                
+
                 // Get the list of messages
                 const response = await this.http.get('https://gmail.googleapis.com/gmail/v1/users/me/messages', {
                     headers: {
@@ -261,24 +261,24 @@ export class GmailService {
                 }
 
                 const data = JSON.parse(response.content);
-                
+
                 // Return the count by date range
                 return {
-                    [`${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`]: 
+                    [`${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`]:
                         data.resultSizeEstimate || (data.messages ? data.messages.length : 0)
                 };
             } else {
                 // If no date range specified, count emails from last 7 days
                 const endDate = new Date();
                 const results: Record<string, number> = {};
-                
+
                 // Count emails for each of the last 7 days
                 for (let i = 6; i >= 0; i--) {
                     const day = new Date();
                     day.setDate(day.getDate() - i);
-                    
+
                     const dayQuery = `${query} after:${day.getFullYear()}/${day.getMonth() + 1}/${day.getDate()} before:${day.getFullYear()}/${day.getMonth() + 1}/${day.getDate() + 1}`;
-                    
+
                     const response = await this.http.get('https://gmail.googleapis.com/gmail/v1/users/me/messages', {
                         headers: {
                             'Authorization': `Bearer ${accessToken}`
@@ -291,13 +291,13 @@ export class GmailService {
                     if (response.statusCode === 200 && response.content) {
                         const data = JSON.parse(response.content);
                         const count = data.resultSizeEstimate || (data.messages ? data.messages.length : 0);
-                        
+
                         // Format date as YYYY-MM-DD
                         const dateKey = day.toISOString().split('T')[0];
                         results[dateKey] = count;
                     }
                 }
-                
+
                 return results;
             }
         } catch (error) {
@@ -314,7 +314,7 @@ export class GmailService {
 
         try {
             const accessToken = await this.getAccessToken();
-            
+
             const response = await this.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${emailId}`, {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`
@@ -330,20 +330,20 @@ export class GmailService {
 
             const message = JSON.parse(response.content);
             const headers = message.payload.headers;
-            
+
             const fromHeader = headers.find((h: any) => h.name === 'From');
             const toHeader = headers.find((h: any) => h.name === 'To');
             const subjectHeader = headers.find((h: any) => h.name === 'Subject');
             const dateHeader = headers.find((h: any) => h.name === 'Date');
-            
+
             // Extract email body
             let content = '';
-            
+
             const extractBody = (part: any): string => {
                 if (part.mimeType === 'text/plain' && part.body.data) {
                     return Buffer.from(part.body.data, 'base64').toString('utf-8');
                 }
-                
+
                 if (part.parts) {
                     for (const subPart of part.parts) {
                         const subContent = extractBody(subPart);
@@ -352,10 +352,10 @@ export class GmailService {
                         }
                     }
                 }
-                
+
                 return '';
             };
-            
+
             if (message.payload.body && message.payload.body.data) {
                 content = Buffer.from(message.payload.body.data, 'base64').toString('utf-8');
             } else if (message.payload.parts) {

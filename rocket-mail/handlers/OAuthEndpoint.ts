@@ -100,68 +100,68 @@ export class OAuthEndpoint implements IApiEndpoint {
                 'Content-Type': 'text/html',
             },
             content: `
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Rocket Mail - Authentication Error</title>
-    <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f5f5f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .container {
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            padding: 40px;
-            max-width: 500px;
-            text-align: center;
-        }
-        h1 {
-            color: #e74c3c;
-            margin-bottom: 20px;
-        }
-        p {
-            color: #444;
-            font-size: 16px;
-            line-height: 1.6;
-        }
-        .error-icon {
-            font-size: 72px;
-            margin-bottom: 20px;
-            color: #e74c3c;
-        }
-        .close-button {
-            margin-top: 30px;
-            background-color: #e74c3c;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        .close-button:hover {
-            background-color: #c0392b;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="error-icon">❌</div>
-        <h1>Authentication Error</h1>
-        <p>${errorMessage}</p>
-        <p>Please try again or contact your administrator.</p>
-        <button class="close-button" onclick="window.close()">Close Window</button>
-    </div>
-</body>
-</html>
-            `,
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Rocket Mail - Authentication Error</title>
+                    <style>
+                        body {
+                            font-family: 'Arial', sans-serif;
+                            background-color: #f5f5f5;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            height: 100vh;
+                            margin: 0;
+                        }
+                        .container {
+                            background-color: white;
+                            border-radius: 8px;
+                            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                            padding: 40px;
+                            max-width: 500px;
+                            text-align: center;
+                        }
+                        h1 {
+                            color: #e74c3c;
+                            margin-bottom: 20px;
+                        }
+                        p {
+                            color: #444;
+                            font-size: 16px;
+                            line-height: 1.6;
+                        }
+                        .error-icon {
+                            font-size: 72px;
+                            margin-bottom: 20px;
+                            color: #e74c3c;
+                        }
+                        .close-button {
+                            margin-top: 30px;
+                            background-color: #e74c3c;
+                            color: white;
+                            border: none;
+                            padding: 10px 20px;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 16px;
+                        }
+                        .close-button:hover {
+                            background-color: #c0392b;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="error-icon">❌</div>
+                        <h1>Authentication Error</h1>
+                        <p>${errorMessage}</p>
+                        <p>Please try again or contact your administrator.</p>
+                        <button class="close-button" onclick="window.close()">Close Window</button>
+                    </div>
+                </body>
+                </html>
+                            `,
         };
     }
 
@@ -175,78 +175,78 @@ export class OAuthEndpoint implements IApiEndpoint {
                 'Content-Type': 'text/html',
             },
             content: `
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Rocket Mail - Authentication Success</title>
-    <style>
-        body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f5f5f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .container {
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            padding: 40px;
-            max-width: 500px;
-            text-align: center;
-        }
-        h1 {
-            color: #2ecc71;
-            margin-bottom: 20px;
-        }
-        p {
-            color: #444;
-            font-size: 16px;
-            line-height: 1.6;
-        }
-        .success-icon {
-            font-size: 72px;
-            margin-bottom: 20px;
-            color: #2ecc71;
-        }
-        .email {
-            font-weight: bold;
-            color: #333;
-        }
-        .close-button {
-            margin-top: 30px;
-            background-color: #2ecc71;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        .close-button:hover {
-            background-color: #27ae60;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="success-icon">✅</div>
-        <h1>Authentication Successful</h1>
-        <p>Your Gmail account <span class="email">${email}</span> has been successfully connected to Rocket Mail.</p>
-        <p>You can now close this window and return to Rocket Chat to use email commands.</p>
-        <button class="close-button" onclick="window.close()">Close Window</button>
-    </div>
-    <script>
-        // Auto-close after 5 seconds
-        setTimeout(() => {
-            window.close();
-        }, 5000);
-    </script>
-</body>
-</html>
-            `,
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Rocket Mail - Authentication Success</title>
+                    <style>
+                        body {
+                            font-family: 'Arial', sans-serif;
+                            background-color: #f5f5f5;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            height: 100vh;
+                            margin: 0;
+                        }
+                        .container {
+                            background-color: white;
+                            border-radius: 8px;
+                            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                            padding: 40px;
+                            max-width: 500px;
+                            text-align: center;
+                        }
+                        h1 {
+                            color: #2ecc71;
+                            margin-bottom: 20px;
+                        }
+                        p {
+                            color: #444;
+                            font-size: 16px;
+                            line-height: 1.6;
+                        }
+                        .success-icon {
+                            font-size: 72px;
+                            margin-bottom: 20px;
+                            color: #2ecc71;
+                        }
+                        .email {
+                            font-weight: bold;
+                            color: #333;
+                        }
+                        .close-button {
+                            margin-top: 30px;
+                            background-color: #2ecc71;
+                            color: white;
+                            border: none;
+                            padding: 10px 20px;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 16px;
+                        }
+                        .close-button:hover {
+                            background-color: #27ae60;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="success-icon">✅</div>
+                        <h1>Authentication Successful</h1>
+                        <p>Your Gmail account <span class="email">${email}</span> has been successfully connected to Rocket Mail.</p>
+                        <p>You can now close this window and return to Rocket Chat to use email commands.</p>
+                        <button class="close-button" onclick="window.close()">Close Window</button>
+                    </div>
+                    <script>
+                        // Auto-close after 5 seconds
+                        setTimeout(() => {
+                            window.close();
+                        }, 5000);
+                    </script>
+                </body>
+                </html>
+                            `,
         };
     }
 }

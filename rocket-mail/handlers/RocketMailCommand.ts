@@ -8,7 +8,6 @@ import {
     ISlashCommand,
     SlashCommandContext,
 } from "@rocket.chat/apps-engine/definition/slashcommands";
-import { EmailService } from "../services/EmailService";
 import { getEmailSettings } from "../config/SettingsManager";
 import { RocketMailApp } from "../RocketMailApp";
 import {
@@ -16,7 +15,8 @@ import {
     RocketChatAssociationRecord,
 } from "@rocket.chat/apps-engine/definition/metadata";
 import { EmailTaskHandler } from "./EmailTaskHandler";
-import { SettingsUtil } from '../utils/SettingsUtil';
+import * as SettingsUtil from '../utils/SettingsUtil';
+import { EmailServiceFactory } from "../services/EmailServiceFactory";
 
 interface IEmailContact {
     name: string;
@@ -96,11 +96,9 @@ export class RocketMailCommand implements ISlashCommand {
     public i18nParamsExample = "<subcommand>";
     public providesPreview = false;
     private contactManager: ContactManager;
-    private settingsUtil: SettingsUtil;
 
     constructor(private readonly app: RocketMailApp) {
         this.contactManager = new ContactManager(app);
-        this.settingsUtil = new SettingsUtil(app);
     }
 
     public async executor(
@@ -127,11 +125,19 @@ export class RocketMailCommand implements ISlashCommand {
                     room,
                     read,
                     modify,
-                    http
+                    http,
+                    persistence
                 );
                 break;
             case "lastemail":
-                await this.handleLastEmail(sender, room, read, modify, http);
+                await this.handleLastEmail(
+                    sender,
+                    room,
+                    read,
+                    modify,
+                    http,
+                    persistence
+                );
                 break;
             case "add":
                 await this.handleAddContact(
@@ -179,7 +185,8 @@ export class RocketMailCommand implements ISlashCommand {
         room,
         read,
         modify,
-        http
+        http,
+        persistence
     ): Promise<void> {
         const messageBuilder = modify
             .getCreator()
@@ -215,13 +222,16 @@ export class RocketMailCommand implements ISlashCommand {
 
             // Fall back to legacy method if OAuth is not set up
             const settings = await getEmailSettings(
-                this.settingsUtil.getRead().getEnvironmentReader().getSettings()
+                SettingsUtil.getRead(this.app).getEnvironmentReader().getSettings()
             );
 
-            const emailService = new EmailService(
+            const emailService = await EmailServiceFactory.createEmailService(
                 settings,
+                sender.id,
                 this.app.getLogger(),
-                http
+                http,
+                read,
+                persistence
             );
 
             const email = await emailService.getLastReceivedEmail();
@@ -259,7 +269,8 @@ ${email.content}`
         room,
         read,
         modify,
-        http
+        http,
+        persistence
     ): Promise<void> {
         const [recipient, subject, ...contentParts] = args;
         const content = contentParts.join(" ");
@@ -280,13 +291,16 @@ ${email.content}`
 
         try {
             const settings = await getEmailSettings(
-                this.settingsUtil.getRead().getEnvironmentReader().getSettings()
+                SettingsUtil.getRead(this.app).getEnvironmentReader().getSettings()
             );
 
-            const emailService = new EmailService(
+            const emailService = await EmailServiceFactory.createEmailService(
                 settings,
+                sender.id,
                 this.app.getLogger(),
-                http
+                http,
+                read,
+                persistence
             );
 
             const success = await emailService.sendEmail({

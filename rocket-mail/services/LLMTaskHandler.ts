@@ -1,11 +1,12 @@
 import { IHttp, ILogger, IModify, IPersistence, IRead } from "@rocket.chat/apps-engine/definition/accessors";
 import { ILLMEmailAction, ILLMTaskResult, LLMEmailActionType } from "../models/LLMTask";
 import { LLMService } from "./LLMService";
-import { EmailService } from "./EmailService";
 import { ContactService } from "./ContactService";
 import { getEmailSettings } from "../config/SettingsManager";
 import { IEmailSettings } from "../interfaces/IEmailService";
 import { RocketMailApp } from "../RocketMailApp";
+import { EmailServiceFactory } from "./EmailServiceFactory";
+import { GmailService } from "./GmailService";
 
 export class LLMTaskHandler {
     private llmService: LLMService;
@@ -84,32 +85,46 @@ export class LLMTaskHandler {
     }
 
     private async executeAction(action: ILLMEmailAction, sender: any): Promise<ILLMTaskResult> {
-        const settings = await getEmailSettings(this.read.getEnvironmentReader().getSettings());
-        const emailService = new EmailService(settings, this.logger, this.http);
+        try {
+            const settings = await getEmailSettings(this.read.getEnvironmentReader().getSettings());
+            const emailService = await EmailServiceFactory.createEmailService(
+                settings,
+                sender.id,
+                this.logger,
+                this.http,
+                this.read,
+                this.persistence
+            );
 
-        switch (action.action as LLMEmailActionType) {
-            case LLMEmailActionType.SEARCH_EMAILS:
-                return await this.handleSearchEmails(emailService, action.parameters);
-                
-            case LLMEmailActionType.COUNT_EMAILS:
-                return await this.handleCountEmails(emailService, action.parameters);
-                
-            case LLMEmailActionType.VIEW_EMAIL:
-                return await this.handleViewEmail(emailService, action.parameters);
-                
-            case LLMEmailActionType.SEND_EMAIL:
-                return await this.handleSendEmail(emailService, settings, action.parameters);
-                
-            case LLMEmailActionType.UNKNOWN:
-            default:
-                return {
-                    success: false,
-                    message: "I couldn't understand what email task you wanted me to perform. Please try rephrasing your request."
-                };
+            switch (action.action as LLMEmailActionType) {
+                case LLMEmailActionType.SEARCH_EMAILS:
+                    return await this.handleSearchEmails(emailService, action.parameters);
+                    
+                case LLMEmailActionType.COUNT_EMAILS:
+                    return await this.handleCountEmails(emailService, action.parameters);
+                    
+                case LLMEmailActionType.VIEW_EMAIL:
+                    return await this.handleViewEmail(emailService, action.parameters);
+                    
+                case LLMEmailActionType.SEND_EMAIL:
+                    return await this.handleSendEmail(emailService, settings, action.parameters);
+                    
+                case LLMEmailActionType.UNKNOWN:
+                default:
+                    return {
+                        success: false,
+                        message: "I couldn't understand what email task you wanted me to perform. Please try rephrasing your request."
+                    };
+            }
+        } catch (error) {
+            return {
+                success: false,
+                message: `Error executing email action: ${error.message}`
+            };
         }
     }
 
-    private async handleSearchEmails(emailService: EmailService, params: any): Promise<ILLMTaskResult> {
+    private async handleSearchEmails(emailService: GmailService, params: any): Promise<ILLMTaskResult> {
         try {
             const emails = await emailService.searchEmails(params);
             
@@ -145,7 +160,7 @@ export class LLMTaskHandler {
         }
     }
 
-    private async handleCountEmails(emailService: EmailService, params: any): Promise<ILLMTaskResult> {
+    private async handleCountEmails(emailService: GmailService, params: any): Promise<ILLMTaskResult> {
         try {
             const counts = await emailService.countEmails(params);
             
@@ -177,7 +192,7 @@ export class LLMTaskHandler {
         }
     }
 
-    private async handleViewEmail(emailService: EmailService, params: any): Promise<ILLMTaskResult> {
+    private async handleViewEmail(emailService: GmailService, params: any): Promise<ILLMTaskResult> {
         try {
             const email = await emailService.getEmailById(params.emailId);
             
@@ -203,7 +218,7 @@ export class LLMTaskHandler {
     }
 
     private async handleSendEmail(
-        emailService: EmailService, 
+        emailService: GmailService, 
         settings: IEmailSettings, 
         params: any
     ): Promise<ILLMTaskResult> {

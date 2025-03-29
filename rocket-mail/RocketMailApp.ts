@@ -13,14 +13,11 @@ import { CommandHandler } from './handlers/CommandHandler';
 import { OAuthEndpoint } from './handlers/OAuthEndpoint';
 import { SettingType } from '@rocket.chat/apps-engine/definition/settings';
 import { ApiSecurity, ApiVisibility } from '@rocket.chat/apps-engine/definition/api';
-import { SettingsUtil } from './utils/SettingsUtil';
+import * as SettingsUtil from './utils/SettingsUtil';
 
 export class RocketMailApp extends App {
-    private settingsUtil: SettingsUtil;
-
     constructor(info: IAppInfo, logger: ILogger, accessors: IAppAccessors) {
         super(info, logger, accessors);
-        this.settingsUtil = new SettingsUtil(this);
     }
 
     /**
@@ -86,41 +83,41 @@ export class RocketMailApp extends App {
      * Get the read accessor
      */
     public getRead(): IRead {
-        return this.settingsUtil.getRead();
+        return SettingsUtil.getRead(this);
     }
 
     /**
      * Get the persistence reader directly
      */
     public getPersistenceReader(): IPersistenceRead {
-        return this.settingsUtil.getPersistenceReader();
+        return SettingsUtil.getPersistenceReader(this);
     }
 
     /**
      * Get DeepInfra API key from settings
      */
     public async getDeepInfraApiKey(): Promise<string> {
-        return this.settingsUtil.getDeepInfraApiKey();
+        return SettingsUtil.getDeepInfraApiKey(this);
     }
 
     /**
      * Get OAuth client ID from settings
      */
     public async getOAuthClientId(): Promise<string> {
-        return this.settingsUtil.getOAuthClientId();
+        return SettingsUtil.getOAuthClientId(this);
     }
 
     /**
      * Get OAuth client secret from settings
      */
     public async getOAuthClientSecret(): Promise<string> {
-        return this.settingsUtil.getOAuthClientSecret();
+        return SettingsUtil.getOAuthClientSecret(this);
     }
 
     /**
      * Get OAuth redirect URI from settings
      */
     public async getOAuthRedirectUri(): Promise<string> {
-        return this.settingsUtil.getOAuthRedirectUri();
+        return SettingsUtil.getOAuthRedirectUri(this);
     }
 }
