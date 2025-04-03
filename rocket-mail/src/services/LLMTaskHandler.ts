@@ -6,7 +6,7 @@ import { getEmailSettings } from "../config/SettingsManager";
 import { RocketMailApp } from "../../RocketMailApp";
 import { EmailServiceFactory } from "./EmailServiceFactory";
 import { GmailService } from "./GmailService";
-import { ReportCommand } from "../commands/ReportHandler";
+import { ReportCommand } from "../handlers/ReportHandler";
 import { MessageService } from "./MessageService";
 import { IContact } from "../interfaces/IContact";
 import { IEmailSettings } from "../interfaces/IEmailService";

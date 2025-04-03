@@ -9,8 +9,8 @@ import {
 } from '@rocket.chat/apps-engine/definition/accessors';
 import { IAppInfo } from '@rocket.chat/apps-engine/definition/metadata';
 import { extendSettings } from './src/config/SettingsManager';
-import { CommandHandler } from './src/handlers/CommandHandler';
-import { OAuthEndpoint } from './src/handlers/OAuthEndpoint';
+import { RocketMailCommand } from './src/commands/RocketMailCommand';
+import { OAuthEndpoint } from './src/services/OAuthEndpoint';
 import { SettingType } from '@rocket.chat/apps-engine/definition/settings';
 import { ApiSecurity, ApiVisibility } from '@rocket.chat/apps-engine/definition/api';
 import * as SettingsUtil from './src/utils/SettingsUtil';
@@ -67,7 +67,7 @@ export class RocketMailApp extends App {
         // Register application settings and commands
         await Promise.all([
             extendSettings(configuration.settings),
-            configuration.slashCommands.provideSlashCommand(new CommandHandler(this)),
+            configuration.slashCommands.provideSlashCommand(new RocketMailCommand(this)),
         ]);
     }
 

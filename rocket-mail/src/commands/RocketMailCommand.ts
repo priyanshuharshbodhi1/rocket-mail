@@ -9,22 +9,22 @@ import {
     SlashCommandContext,
 } from "@rocket.chat/apps-engine/definition/slashcommands";
 import { RocketMailApp } from "../../RocketMailApp";
-import { AddCommand } from "../commands/AddHandler";
-import { DeleteCommand } from "../commands/DeleteHandler";
-import { ListCommand } from "../commands/ListHandler";
-import { SendEmailCommand } from "../commands/SendEmailHandler";
-import { LastEmailCommand } from "../commands/LastEmailHandler";
-import { HelpCommand } from "../commands/HelpHandler";
-import { SearchEmailCommand } from "../commands/SearchEmailHandler";
-import { ViewEmailCommand } from "../commands/ViewEmailHandler";
-import { CountEmailCommand } from "../commands/CountEmailHandler";
+import { AddCommand } from "../handlers/AddHandler";
+import { DeleteCommand } from "../handlers/DeleteHandler";
+import { ListCommand } from "../handlers/ListHandler";
+import { SendEmailCommand } from "../handlers/SendEmailHandler";
+import { LastEmailCommand } from "../handlers/LastEmailHandler";
+import { HelpCommand } from "../handlers/HelpHandler";
+import { SearchEmailCommand } from "../handlers/SearchEmailHandler";
+import { ViewEmailCommand } from "../handlers/ViewEmailHandler";
+import { CountEmailCommand } from "../handlers/CountEmailHandler";
 import { ContactService } from "../services/ContactService";
 import { LLMTaskHandler } from "../services/LLMTaskHandler";
-import { LoginCommand } from "../commands/LoginHandler";
-import { LogoutCommand } from "../commands/LogoutHandler";
-import { ReportCommand } from "../commands/ReportHandler";
+import { LoginCommand } from "../handlers/LoginHandler";
+import { LogoutCommand } from "../handlers/LogoutHandler";
+import { ReportCommand } from "../handlers/ReportHandler";
 
-export class CommandHandler implements ISlashCommand {
+export class RocketMailCommand implements ISlashCommand {
     public command = "rocket-mail";
     public i18nDescription = "Handles email commands";
     public i18nParamsExample = "<subcommand>";
