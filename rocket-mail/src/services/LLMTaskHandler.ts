@@ -4,7 +4,7 @@ import { LLMService } from "./LLMService";
 import { ContactService } from "./ContactService";
 import { getEmailSettings } from "../config/SettingsManager";
 import { RocketMailApp } from "../../RocketMailApp";
-import { EmailServiceFactory } from "./EmailServiceFactory";
+import { EmailServiceFactory } from "../email-providers/EmailServiceFactory";
 import { GmailService } from "./GmailService";
 import { ReportCommand } from "../handlers/ReportHandler";
 import { MessageService } from "./MessageService";

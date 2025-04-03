@@ -7,7 +7,7 @@ import {
 import { getEmailSettings } from "../config/SettingsManager";
 import { RocketMailApp } from "../../RocketMailApp";
 import { ContactService } from "../services/ContactService";
-import { EmailServiceFactory } from "../services/EmailServiceFactory";
+import { EmailServiceFactory } from "../email-providers/EmailServiceFactory";
 
 export class SendEmailCommand {
     constructor(

@@ -6,7 +6,7 @@ import {
 } from '@rocket.chat/apps-engine/definition/accessors';
 import { SlashCommandContext } from '@rocket.chat/apps-engine/definition/slashcommands';
 import { RocketMailApp } from '../../RocketMailApp';
-import { OAuthService } from '../services/OAuthService';
+import { OAuthService } from '../email-providers/OAuth/OAuthService';
 
 export class LogoutCommand {
     constructor(private readonly app: RocketMailApp) {}

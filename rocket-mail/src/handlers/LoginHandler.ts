@@ -9,7 +9,7 @@ import {
     SlashCommandContext,
 } from '@rocket.chat/apps-engine/definition/slashcommands';
 import { RocketMailApp } from '../../RocketMailApp';
-import { OAuthService } from '../services/OAuthService';
+import { OAuthService } from '../email-providers/OAuth/OAuthService';
 import { getEmailSettings } from '../config/SettingsManager';
 import { EmailProviders } from '../types/enums/EmailProviders';
 

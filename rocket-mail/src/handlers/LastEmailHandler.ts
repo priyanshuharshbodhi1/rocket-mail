@@ -6,7 +6,7 @@ import {
 } from "@rocket.chat/apps-engine/definition/accessors";
 import { getEmailSettings } from "../config/SettingsManager";
 import { RocketMailApp } from "../../RocketMailApp";
-import { EmailServiceFactory } from "../services/EmailServiceFactory";
+import { EmailServiceFactory } from "../email-providers/EmailServiceFactory";
 
 export class LastEmailCommand {
     constructor(private readonly app: RocketMailApp) {}

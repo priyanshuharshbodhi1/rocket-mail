@@ -10,7 +10,7 @@ import {
 import { IAppInfo } from '@rocket.chat/apps-engine/definition/metadata';
 import { extendSettings } from './src/config/SettingsManager';
 import { RocketMailCommand } from './src/commands/RocketMailCommand';
-import { OAuthEndpoint } from './src/services/OAuthEndpoint';
+import { OAuthEndpoint } from './src/email-providers/OAuth/OAuthEndpoint';
 import { SettingType } from '@rocket.chat/apps-engine/definition/settings';
 import { ApiSecurity, ApiVisibility } from '@rocket.chat/apps-engine/definition/api';
 import * as SettingsUtil from './src/utils/SettingsUtil';

@@ -1,5 +1,5 @@
 import { IHttp, ILogger } from '@rocket.chat/apps-engine/definition/accessors';
-import { OAuthService } from './OAuthService';
+import { OAuthService } from '../email-providers/OAuth/OAuthService';
 import { IEmailContent, IEmailDetails, IEmailSummary } from '../types/interfaces/IEmailService';
 import { IEmailSearchParams, IEmailCountParams } from '../models/LLMTask';
 
@@ -11,16 +11,10 @@ export class GmailService {
         private readonly logger: ILogger
     ) {}
 
-    /**
-     * Get valid access token for the user
-     */
     private async getAccessToken(): Promise<string> {
         return this.oauthService.getValidAccessToken(this.userId);
     }
 
-    /**
-     * Send an email using Gmail API
-     */
     public async sendEmail(emailContent: IEmailContent): Promise<boolean> {
         this.logger.debug('GmailService.sendEmail -> Preparing to send email');
 
@@ -85,9 +79,6 @@ export class GmailService {
         }
     }
 
-    /**
-     * Get the most recent email from inbox
-     */
     public async getLastReceivedEmail(): Promise<IEmailDetails> {
         this.logger.debug('GmailService.getLastReceivedEmail -> Getting last received email');
 
@@ -123,9 +114,6 @@ export class GmailService {
         }
     }
 
-    /**
-     * Search emails based on criteria
-     */
     public async searchEmails(params: IEmailSearchParams): Promise<IEmailSummary[]> {
         this.logger.debug('GmailService.searchEmails -> Searching emails with params:', params);
 
@@ -223,9 +211,6 @@ export class GmailService {
         }
     }
 
-    /**
-     * Count emails by date range and optional criteria
-     */
     public async countEmails(params: IEmailCountParams): Promise<Record<string, number>> {
         this.logger.debug('GmailService.countEmails -> Counting emails with params:', params);
 
@@ -306,9 +291,6 @@ export class GmailService {
         }
     }
 
-    /**
-     * Generate comprehensive email report statistics for the given period
-     */
     public async generateEmailReport(startDate: string, endDate: string): Promise<Record<string, any>> {
         this.logger.debug(`GmailService.generateEmailReport -> Generating report from ${startDate} to ${endDate}`);
 
@@ -452,9 +434,6 @@ export class GmailService {
         }
     }
 
-    /**
-     * Get full content of a specific email by ID
-     */
     public async getEmailById(emailId: string): Promise<IEmailDetails> {
         this.logger.debug(`GmailService.getEmailById -> Getting email with ID: ${emailId}`);
 
