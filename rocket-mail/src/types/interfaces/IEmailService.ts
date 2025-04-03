@@ -1,5 +1,5 @@
 import { EmailProviders } from '../enums/EmailProviders';
-import { IEmailCountParams, IEmailSearchParams } from '../models/LLMTask';
+import { IEmailCountParams, IEmailSearchParams } from '../../models/LLMTask';
 
 export interface IEmailSettings {
     email: string;

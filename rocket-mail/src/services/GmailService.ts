@@ -1,6 +1,6 @@
 import { IHttp, ILogger } from '@rocket.chat/apps-engine/definition/accessors';
 import { OAuthService } from './OAuthService';
-import { IEmailContent, IEmailDetails, IEmailSummary } from '../interfaces/IEmailService';
+import { IEmailContent, IEmailDetails, IEmailSummary } from '../types/interfaces/IEmailService';
 import { IEmailSearchParams, IEmailCountParams } from '../models/LLMTask';
 
 export class GmailService {

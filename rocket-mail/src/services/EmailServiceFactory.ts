@@ -1,8 +1,8 @@
 import { IHttp, ILogger, IPersistence, IRead } from '@rocket.chat/apps-engine/definition/accessors';
-import { IEmailSettings } from '../interfaces/IEmailService';
+import { IEmailSettings } from '../types/interfaces/IEmailService';
 import { GmailService } from './GmailService';
 import { OAuthService } from './OAuthService';
-import { EmailProviders } from '../enums/EmailProviders';
+import { EmailProviders } from '../types/enums/EmailProviders';
 // import { SettingsIds } from '../enums/SettingsIds';
 
 export class EmailServiceFactory {

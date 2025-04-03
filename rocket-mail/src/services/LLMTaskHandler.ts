@@ -8,8 +8,8 @@ import { EmailServiceFactory } from "./EmailServiceFactory";
 import { GmailService } from "./GmailService";
 import { ReportCommand } from "../handlers/ReportHandler";
 import { MessageService } from "./MessageService";
-import { IContact } from "../interfaces/IContact";
-import { IEmailSettings } from "../interfaces/IEmailService";
+import { IContact } from "../types/interfaces/IContact";
+import { IEmailSettings } from "../types/interfaces/IEmailService";
 
 
 export class LLMTaskHandler {

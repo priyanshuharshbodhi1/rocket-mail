@@ -1,8 +1,8 @@
 import { ISettingsExtend, ISettingRead } from '@rocket.chat/apps-engine/definition/accessors';
 import { settings } from './Settings';
-import { SettingsIds } from '../enums/SettingsIds';
-import { EmailProviders } from '../enums/EmailProviders';
-import { IEmailSettings } from '../interfaces/IEmailService';
+import { SettingsIds } from '../types/enums/SettingsIds';
+import { EmailProviders } from '../types/enums/EmailProviders';
+import { IEmailSettings } from '../types/interfaces/IEmailService';
 
 /**
  * Initialize app settings

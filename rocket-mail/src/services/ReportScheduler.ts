@@ -6,7 +6,7 @@ import {
 } from '@rocket.chat/apps-engine/definition/accessors';
 import { RocketMailApp } from '../../RocketMailApp';
 import { ReportCommand } from '../handlers/ReportHandler';
-import { SettingsIds } from '../enums/SettingsIds';
+import { SettingsIds } from '../types/enums/SettingsIds';
 import { RocketChatAssociationModel, RocketChatAssociationRecord } from '@rocket.chat/apps-engine/definition/metadata';
 
 export class ReportScheduler {

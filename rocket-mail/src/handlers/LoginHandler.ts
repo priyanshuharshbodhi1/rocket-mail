@@ -11,7 +11,7 @@ import {
 import { RocketMailApp } from '../../RocketMailApp';
 import { OAuthService } from '../services/OAuthService';
 import { getEmailSettings } from '../config/SettingsManager';
-import { EmailProviders } from '../enums/EmailProviders';
+import { EmailProviders } from '../types/enums/EmailProviders';
 
 export class LoginCommand implements ISlashCommand {
     public command = 'login';
