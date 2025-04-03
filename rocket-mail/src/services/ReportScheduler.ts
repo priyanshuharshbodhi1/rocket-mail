@@ -5,7 +5,7 @@ import {
     IRead,
 } from '@rocket.chat/apps-engine/definition/accessors';
 import { RocketMailApp } from '../../RocketMailApp';
-import { ReportCommand } from '../commands/ReportCommand';
+import { ReportCommand } from '../commands/ReportHandler';
 import { SettingsIds } from '../enums/SettingsIds';
 import { RocketChatAssociationModel, RocketChatAssociationRecord } from '@rocket.chat/apps-engine/definition/metadata';
 
