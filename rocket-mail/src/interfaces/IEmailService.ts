@@ -37,33 +37,16 @@ export interface IEmailDetails extends IEmailSummary {
  * Email service interface that must be implemented by all email providers
  */
 export interface IEmailService {
-    /**
-     * Send an email
-     */
+
     sendEmail(emailContent: IEmailContent): Promise<boolean>;
 
-    /**
-     * Get the most recently received email
-     */
     getLastReceivedEmail(): Promise<IEmailDetails>;
 
-    /**
-     * Search for emails based on given parameters
-     */
     searchEmails(params: IEmailSearchParams): Promise<IEmailSummary[]>;
 
-    /**
-     * Count emails by date range and criteria
-     */
     countEmails(params: IEmailCountParams): Promise<Record<string, number>>;
 
-    /**
-     * Get details of a specific email by ID
-     */
     getEmailById(emailId: string): Promise<IEmailDetails>;
 
-    /**
-     * Generate a comprehensive email report with statistics
-     */
     generateEmailReport(startDate: string, endDate: string): Promise<Record<string, any>>;
 }

@@ -7,7 +7,7 @@ import {
 import { getEmailSettings } from "../config/SettingsManager";
 import { RocketMailApp } from "../../RocketMailApp";
 import { EmailServiceFactory } from "../services/EmailServiceFactory";
-import { formatDate } from "../services/helpers";
+import { formatDate } from "../utils/FormatDate";
 
 export class ReportCommand {
     constructor(private readonly app: RocketMailApp) {}
