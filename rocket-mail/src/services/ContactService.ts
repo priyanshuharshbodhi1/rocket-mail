@@ -1,7 +1,7 @@
 import { IPersistence, IRead } from "@rocket.chat/apps-engine/definition/accessors";
 import { RocketChatAssociationModel, RocketChatAssociationRecord } from "@rocket.chat/apps-engine/definition/metadata";
 import { IEmailContact, IContactsStorage } from "../models/Contact";
-import { RocketMailApp } from "../RocketMailApp";
+import { RocketMailApp } from "../../RocketMailApp";
 
 export class ContactService {
     constructor(private readonly app: RocketMailApp) {}

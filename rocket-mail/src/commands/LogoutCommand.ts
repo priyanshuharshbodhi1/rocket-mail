@@ -5,7 +5,7 @@ import {
     IRead,
 } from '@rocket.chat/apps-engine/definition/accessors';
 import { SlashCommandContext } from '@rocket.chat/apps-engine/definition/slashcommands';
-import { RocketMailApp } from '../RocketMailApp';
+import { RocketMailApp } from '../../RocketMailApp';
 import { OAuthService } from '../services/OAuthService';
 
 export class LogoutCommand {
@@ -42,7 +42,7 @@ export class LogoutCommand {
         try {
             // Attempt to revoke the token
             const success = await oauthService.revokeToken(sender.id);
-            
+
             if (success) {
                 messageBuilder.setText('✅ Successfully disconnected your email account.');
                 await modify.getCreator().finish(messageBuilder);

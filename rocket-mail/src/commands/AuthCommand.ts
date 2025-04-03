@@ -8,7 +8,7 @@ import {
     ISlashCommand,
     SlashCommandContext,
 } from '@rocket.chat/apps-engine/definition/slashcommands';
-import { RocketMailApp } from '../RocketMailApp';
+import { RocketMailApp } from '../../RocketMailApp';
 import { OAuthService } from '../services/OAuthService';
 
 export class AuthCommand implements ISlashCommand {
@@ -60,11 +60,11 @@ export class AuthCommand implements ISlashCommand {
             case 'login':
                 await this.handleLogin(oauthService, sender.id, messageBuilder);
                 break;
-            
+
             case 'logout':
                 await this.handleLogout(oauthService, sender.id, messageBuilder, persistence);
                 break;
-            
+
             case 'status':
             default:
                 await this.handleStatus(oauthService, sender.id, messageBuilder);
@@ -83,7 +83,7 @@ export class AuthCommand implements ISlashCommand {
         try {
             // Generate the authorization URL
             const authUrl = await oauthService.getAuthorizationUrl(userId);
-            
+
             // Send message with auth URL
             await messageBuilder
                 .setText(`🔐 Connect your Gmail account by clicking this link: [Click here to authenticate with Google](${authUrl})`)
@@ -107,7 +107,7 @@ export class AuthCommand implements ISlashCommand {
         try {
             // Attempt to revoke the token
             const success = await oauthService.revokeToken(userId);
-            
+
             if (success) {
                 await messageBuilder
                     .setText('✅ Successfully disconnected your Gmail account.')
@@ -135,12 +135,12 @@ export class AuthCommand implements ISlashCommand {
         try {
             // Check if the user is authenticated
             const isAuthenticated = await oauthService.isAuthenticated(userId);
-            
+
             if (isAuthenticated) {
                 // Get user email if possible
                 const userInfo = await oauthService.getUserInfo(userId);
                 const emailDisplay = userInfo?.email ? ` as ${userInfo.email}` : '';
-                
+
                 await messageBuilder
                     .setText(`✅ You are currently authenticated with Gmail${emailDisplay}.`)
                     .build();

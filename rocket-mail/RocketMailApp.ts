@@ -6,14 +6,14 @@ import {
     IPersistence,
     IRead,
     IPersistenceRead,
-} from '@rocket.chat/apps-engine/definition/accessors';
-import { IAppInfo } from '@rocket.chat/apps-engine/definition/metadata';
-import { extendSettings } from './config/SettingsManager';
-import { CommandHandler } from './handlers/CommandHandler';
-import { OAuthEndpoint } from './handlers/OAuthEndpoint';
-import { SettingType } from '@rocket.chat/apps-engine/definition/settings';
-import { ApiSecurity, ApiVisibility } from '@rocket.chat/apps-engine/definition/api';
-import * as SettingsUtil from './utils/SettingsUtil';
+} from './node_modules/@rocket.chat/apps-engine/definition/accessors';
+import { IAppInfo } from './node_modules/@rocket.chat/apps-engine/definition/metadata';
+import { extendSettings } from './src/config/SettingsManager';
+import { CommandHandler } from './src/handlers/CommandHandler';
+import { OAuthEndpoint } from './src/handlers/OAuthEndpoint';
+import { SettingType } from './node_modules/@rocket.chat/apps-engine/definition/settings';
+import { ApiSecurity, ApiVisibility } from './node_modules/@rocket.chat/apps-engine/definition/api';
+import * as SettingsUtil from './src/utils/SettingsUtil';
 
 export class RocketMailApp extends App {
     constructor(info: IAppInfo, logger: ILogger, accessors: IAppAccessors) {

@@ -5,11 +5,11 @@ import {
     IPersistence,
 } from "@rocket.chat/apps-engine/definition/accessors";
 import { getEmailSettings } from "../config/SettingsManager";
-import { RocketMailApp } from "../RocketMailApp";
+import { RocketMailApp } from "../../RocketMailApp";
 import { EmailServiceFactory } from "../services/EmailServiceFactory";
-import { IEmailCountParams } from "../models/LLMTask";
+import { IEmailSearchParams } from "../models/LLMTask";
 
-export class CountEmailCommand {
+export class SearchEmailCommand {
     constructor(private readonly app: RocketMailApp) {}
 
     public async execute(
@@ -29,72 +29,68 @@ export class CountEmailCommand {
 
         if (args.length === 0) {
             messageBuilder.setText(
-                "Usage: /rocket-mail count [from:Sender] [since:YYYY-MM-DD] [until:YYYY-MM-DD]"
+                "Usage: /rocket-mail search [subject:Subject] [from:Sender] [body:Text] [since:YYYY-MM-DD] [until:YYYY-MM-DD] [limit:Number]"
             );
             await modify.getCreator().finish(messageBuilder);
             return;
         }
 
-        // Parse count parameters
-        const countParams: IEmailCountParams = {
-            startDate: '',  // Required field, will set default below
-            endDate: ''     // Required field, will set default below
-        };
-        
+        // Parse search parameters
+        const searchParams: IEmailSearchParams = {};
+
         try {
             for (const arg of args) {
-                if (arg.startsWith("from:")) {
-                    countParams.sender = arg.substring(5).trim();
+                if (arg.startsWith("subject:")) {
+                    searchParams.subject = arg.substring(8).trim();
+                } else if (arg.startsWith("from:")) {
+                    searchParams.sender = arg.substring(5).trim();
+                } else if (arg.startsWith("body:")) {
+                    searchParams.body = arg.substring(5).trim();
                 } else if (arg.startsWith("since:")) {
                     const dateStr = arg.substring(6).trim();
                     // Validate date format
                     if (dateStr && !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
                         throw new Error(`Invalid date format for 'since'. Use YYYY-MM-DD.`);
                     }
-                    countParams.startDate = dateStr;
+                    searchParams.startDate = dateStr;
                 } else if (arg.startsWith("until:")) {
                     const dateStr = arg.substring(6).trim();
                     // Validate date format
                     if (dateStr && !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
                         throw new Error(`Invalid date format for 'until'. Use YYYY-MM-DD.`);
                     }
-                    countParams.endDate = dateStr;
+                    searchParams.endDate = dateStr;
+                } else if (arg.startsWith("limit:")) {
+                    const limitStr = arg.substring(6).trim();
+                    const limit = parseInt(limitStr);
+                    if (isNaN(limit) || limit <= 0) {
+                        throw new Error(`Invalid limit value. Must be a positive number.`);
+                    }
+                    searchParams.limit = limit;
+                } else if (!searchParams.body) {
+                    // If no specific parameter is provided, treat as body search
+                    searchParams.body = arg;
                 }
             }
-            
-            // Set default date ranges if not specified
-            if (!countParams.startDate) {
-                const defaultStart = new Date();
-                defaultStart.setDate(defaultStart.getDate() - 7); // One week ago
-                countParams.startDate = defaultStart.toISOString().split('T')[0];
-            }
-            
-            if (!countParams.endDate) {
-                const defaultEnd = new Date();
-                countParams.endDate = defaultEnd.toISOString().split('T')[0];
-            }
 
-            // Validate that start date is before end date
-            const startDate = new Date(countParams.startDate);
-            const endDate = new Date(countParams.endDate);
-            
-            if (startDate > endDate) {
-                throw new Error("Start date must be before end date.");
+            // Set a default limit if not specified
+            if (!searchParams.limit) {
+                searchParams.limit = 10;
             }
         } catch (parseError) {
-            messageBuilder.setText(`❌ Error in count parameters: ${parseError.message}`);
+            messageBuilder.setText(`❌ Error in search parameters: ${parseError.message}`);
             await modify.getCreator().finish(messageBuilder);
             return;
         }
 
-        messageBuilder.setText("🔢 Counting emails. Please wait...");
+        messageBuilder.setText("🔍 Searching emails. Please wait...");
         await modify.getCreator().finish(messageBuilder);
 
         try {
             const settings = await getEmailSettings(
                 read.getEnvironmentReader().getSettings()
             );
-            
+
             try {
                 // Create the appropriate email service
                 const emailService = await EmailServiceFactory.createEmailService(
@@ -107,36 +103,40 @@ export class CountEmailCommand {
                 );
 
                 try {
-                    // Count emails
-                    const counts = await emailService.countEmails(countParams);
-                    
+                    // Search emails
+                    const emails = await emailService.searchEmails(searchParams);
+
                     const resultMessageBuilder = modify
                         .getCreator()
                         .startMessage()
                         .setSender(sender)
                         .setRoom(room);
 
-                    if (Object.keys(counts).length === 0) {
-                        resultMessageBuilder.setText("No emails found in the specified date range.");
+                    if (emails.length === 0) {
+                        resultMessageBuilder.setText("No emails found matching your search criteria.");
                     } else {
-                        let resultText = `📊 **Email Count Results**\n\n`;
-                        
-                        for (const [date, count] of Object.entries(counts)) {
-                            resultText += `**${date}**: ${count} email${count === 1 ? '' : 's'}\n`;
+                        let resultText = `📋 **Search Results** (${emails.length} email${emails.length === 1 ? '' : 's'} found)\n\n`;
+
+                        for (const email of emails) {
+                            resultText += `**From**: ${email.from}\n`;
+                            resultText += `**Date**: ${email.date}\n`;
+                            resultText += `**Subject**: ${email.subject}\n`;
+                            resultText += `**ID**: ${email.id}\n\n`;
                         }
-                        
+
+                        resultText += `To view a specific email, use: \`/rocket-mail view <email_id>\``;
                         resultMessageBuilder.setText(resultText);
                     }
-                    
+
                     await modify.getCreator().finish(resultMessageBuilder);
-                } catch (countError) {
+                } catch (searchError) {
                     const errorMessage = modify
                         .getCreator()
                         .startMessage()
                         .setSender(sender)
                         .setRoom(room);
-                    
-                    errorMessage.setText(`❌ Error counting emails: ${countError.message}`);
+
+                    errorMessage.setText(`❌ Error during search: ${searchError.message}`);
                     await modify.getCreator().finish(errorMessage);
                 }
             } catch (error) {
@@ -147,7 +147,7 @@ export class CountEmailCommand {
                         .startMessage()
                         .setSender(sender)
                         .setRoom(room);
-                    
+
                     authErrorMessage.setText(`🔒 ${error.message}`);
                     await modify.getCreator().finish(authErrorMessage);
                 } else {
@@ -155,15 +155,15 @@ export class CountEmailCommand {
                 }
             }
         } catch (error) {
-            this.app.getLogger().error("Error counting emails:", error);
-            
+            this.app.getLogger().error("Error searching emails:", error);
+
             const errorMessage = modify
                 .getCreator()
                 .startMessage()
                 .setSender(sender)
                 .setRoom(room);
-            
-            errorMessage.setText(`❌ Error counting emails: ${error.message}`);
+
+            errorMessage.setText(`❌ Error searching emails: ${error.message}`);
             await modify.getCreator().finish(errorMessage);
         }
     }

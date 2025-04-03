@@ -5,7 +5,7 @@ import {
     IPersistence,
 } from "@rocket.chat/apps-engine/definition/accessors";
 import { getEmailSettings } from "../config/SettingsManager";
-import { RocketMailApp } from "../RocketMailApp";
+import { RocketMailApp } from "../../RocketMailApp";
 import { ContactService } from "../services/ContactService";
 import { EmailServiceFactory } from "../services/EmailServiceFactory";
 

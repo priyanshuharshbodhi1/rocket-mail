@@ -1,5 +1,5 @@
 import { IPersistence, IRead, IPersistenceRead } from '@rocket.chat/apps-engine/definition/accessors';
-import { RocketMailApp } from '../RocketMailApp';
+import { RocketMailApp } from '../../RocketMailApp';
 
 // Export helper functions instead of a class
 export function getRead(app: RocketMailApp): IRead {

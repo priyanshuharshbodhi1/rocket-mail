@@ -6,7 +6,7 @@ import {
     LLMEmailActionType,
 } from "../models/LLMTask";
 import { ISummarizeParams } from "../models/SummarizeParams";
-import { RocketMailApp } from "../RocketMailApp";
+import { RocketMailApp } from "../../RocketMailApp";
 
 export class LLMService {
     private apiUrl =

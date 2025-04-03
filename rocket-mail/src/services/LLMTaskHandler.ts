@@ -3,19 +3,14 @@ import { ILLMEmailAction, ILLMTaskResult, LLMEmailActionType } from "../models/L
 import { LLMService } from "./LLMService";
 import { ContactService } from "./ContactService";
 import { getEmailSettings } from "../config/SettingsManager";
-import { IEmailSettings } from "../interfaces/IEmailService";
-import { RocketMailApp } from "../RocketMailApp";
+import { RocketMailApp } from "../../RocketMailApp";
 import { EmailServiceFactory } from "./EmailServiceFactory";
 import { GmailService } from "./GmailService";
 import { ReportCommand } from "../commands/ReportCommand";
 import { MessageService } from "./MessageService";
+import { IContact } from "../interfaces/IContact";
+import { IEmailSettings } from "../interfaces/IEmailService";
 
-// Define contact interface locally to avoid import issues
-interface IContact {
-    name: string;
-    email: string;
-    metadata?: Record<string, any>;
-}
 
 export class LLMTaskHandler {
     private llmService: LLMService;
@@ -40,16 +35,16 @@ export class LLMTaskHandler {
         try {
             // Get user's contact list for better context
             const contacts = await this.contactService.getContacts(sender.id, this.read);
-            
+
             // Format contact list for LLM context
             const contactsContext = this.formatContactsForContext(contacts);
-            
+
             // Get available functions to provide in the context
             const functionsContext = this.getAvailableFunctionsContext();
-            
+
             // First, substitute any contact references in the task
             const processedTask = await this.processContactReferences(task, sender.id);
-            
+
             // Send the task to the LLM for analysis along with contacts and functions
             const llmAction = await this.llmService.processEmailTask({
                 task: processedTask,
@@ -77,7 +72,7 @@ export class LLMTaskHandler {
             return "No saved contacts.";
         }
 
-        return contacts.map(contact => 
+        return contacts.map(contact =>
             `${contact.name}: ${contact.email}`
         ).join(", ");
     }
@@ -101,14 +96,14 @@ export class LLMTaskHandler {
         try {
             // Get user contacts
             const contacts = await this.contactService.getContacts(userId, this.read);
-            
+
             // If no contacts, just return the original task
             if (!contacts || contacts.length === 0) {
                 return task;
             }
 
             let processedTask = task;
-            
+
             // Check for contact references and replace them with email addresses
             for (const contact of contacts) {
                 // Match patterns like "@contact_name" or "contact:contact_name"
@@ -117,7 +112,7 @@ export class LLMTaskHandler {
                     new RegExp(`contact:${contact.name}\\b`, 'gi'),
                     new RegExp(`\\b${contact.name}\\b`, 'gi')
                 ];
-                
+
                 for (const pattern of patterns) {
                     if (pattern.test(processedTask)) {
                         // Replace with the actual email address
@@ -126,7 +121,7 @@ export class LLMTaskHandler {
                     }
                 }
             }
-            
+
             return processedTask;
         } catch (error) {
             this.logger.error('Error processing contact references:', error);
@@ -149,19 +144,19 @@ export class LLMTaskHandler {
             switch (action.action as LLMEmailActionType) {
                 case LLMEmailActionType.SEARCH_EMAILS:
                     return await this.handleSearchEmails(emailService, action.parameters);
-                    
+
                 case LLMEmailActionType.COUNT_EMAILS:
                     return await this.handleCountEmails(emailService, action.parameters);
-                    
+
                 case LLMEmailActionType.VIEW_EMAIL:
                     return await this.handleViewEmail(emailService, action.parameters);
-                    
+
                 case LLMEmailActionType.SEND_EMAIL:
                     return await this.handleSendEmail(emailService, settings, action.parameters);
-                
+
                 case LLMEmailActionType.SUMMARIZE:
                     return await this.handleSummarize(action.parameters, sender);
-                    
+
                 case LLMEmailActionType.UNKNOWN:
                 default:
                     return {
@@ -183,11 +178,11 @@ export class LLMTaskHandler {
     private async handleSummarize(params: any, sender: any): Promise<ILLMTaskResult> {
         try {
             const type = params.type || 'email_report';
-            
+
             // Handle email report generation
             if (type === 'email_report') {
                 const days = params.days || 7;
-                
+
                 // Use the ReportCommand directly
                 if (!this.app) {
                     return {
@@ -195,7 +190,7 @@ export class LLMTaskHandler {
                         message: "App instance is not available. Unable to generate report."
                     };
                 }
-                
+
                 const reportCommand = new ReportCommand(this.app);
                 await reportCommand.execute(
                     [days.toString()],
@@ -206,18 +201,18 @@ export class LLMTaskHandler {
                     this.http,
                     this.persistence
                 );
-                
+
                 return {
                     success: true,
                     message: `I've generated a report of your email activity for the past ${days} days.`
                 };
             }
-            
+
             // Handle thread summarization
             if (type.includes('thread')) {
                 // Get the room and timeframe
                 const timeframe = params.timeframe || { type: 'today' };
-                
+
                 // Get messages based on the parameters
                 const messages = await this.messageService.getMessages(
                     sender.room,
@@ -225,23 +220,23 @@ export class LLMTaskHandler {
                     sender,
                     params
                 );
-                
+
                 if (messages.length === 0) {
                     return {
                         success: false,
                         message: "No messages found for summarization."
                     };
                 }
-                
+
                 // Format messages for summarization
                 const formattedMessages = this.messageService.formatMessagesForSummary(messages);
-                
+
                 // Generate summary
                 const summary = await this.llmService.generateSummary(
                     formattedMessages,
                     sender.room.displayName || sender.room.slugifiedName || 'Chat'
                 );
-                
+
                 // If recipient is specified, send as email
                 if (params.recipient_email) {
                     const emailSettings = await getEmailSettings(this.read.getEnvironmentReader().getSettings());
@@ -253,7 +248,7 @@ export class LLMTaskHandler {
                         this.read,
                         this.persistence
                     );
-                    
+
                     // Send the summary as an email
                     await emailService.sendEmail({
                         from: emailSettings.email,
@@ -261,20 +256,20 @@ export class LLMTaskHandler {
                         subject: `Summary of ${sender.room.displayName || sender.room.slugifiedName || 'Conversation'}`,
                         text: summary
                     });
-                    
+
                     return {
                         success: true,
                         message: `📧 Successfully sent summary to ${params.recipient_email}:\n\n${summary.substring(0, 200)}...`
                     };
                 }
-                
+
                 // Otherwise just return the summary
                 return {
                     success: true,
                     message: `📝 **Summary**\n\n${summary}`
                 };
             }
-            
+
             return {
                 success: false,
                 message: "I couldn't understand the type of summary you wanted. Please try again."
@@ -291,25 +286,25 @@ export class LLMTaskHandler {
     private async handleSearchEmails(emailService: GmailService, params: any): Promise<ILLMTaskResult> {
         try {
             const emails = await emailService.searchEmails(params);
-            
+
             if (emails.length === 0) {
                 return {
                     success: true,
                     message: "No emails found matching your criteria."
                 };
             }
-            
+
             let resultText = "**Found Emails**\n\n";
-            
+
             emails.forEach((email, index) => {
                 resultText += `**${index + 1}.** From: ${email.from}\n`;
                 resultText += `   Date: ${email.date}\n`;
                 resultText += `   Subject: ${email.subject}\n`;
                 resultText += `   ID: ${email.id}\n\n`;
             });
-            
+
             resultText += `*To view the full content of an email, you can ask: "show me email with ID ${emails[0].id}"*`;
-            
+
             return {
                 success: true,
                 message: resultText,
@@ -327,21 +322,21 @@ export class LLMTaskHandler {
     private async handleCountEmails(emailService: GmailService, params: any): Promise<ILLMTaskResult> {
         try {
             const counts = await emailService.countEmails(params);
-            
+
             let resultText = "**Email Count Results**\n\n";
             let total = 0;
-            
+
             for (const [date, count] of Object.entries(counts)) {
                 resultText += `${date}: ${count} emails\n`;
                 total += count;
             }
-            
+
             resultText += `\n**Total: ${total} emails**`;
-            
+
             if (total === 0) {
                 resultText = "No emails found for the specified time period.";
             }
-            
+
             return {
                 success: true,
                 message: resultText,
@@ -359,7 +354,7 @@ export class LLMTaskHandler {
     private async handleViewEmail(emailService: GmailService, params: any): Promise<ILLMTaskResult> {
         try {
             const email = await emailService.getEmailById(params.emailId);
-            
+
             const resultText = `**Email Details**\n\n` +
                 `From: ${email.from}\n` +
                 `To: ${email.to}\n` +
@@ -368,7 +363,7 @@ export class LLMTaskHandler {
                 `**Content**:\n${email.content?.substring(0, 1500)}${
                     email.content?.length > 1500 ? "..." : ""
                 }`;
-            
+
             return {
                 success: true,
                 message: resultText,
@@ -392,10 +387,10 @@ export class LLMTaskHandler {
                     message: "Missing required parameters for sending email. Please specify recipient and message content."
                 };
             }
-            
+
             // Format recipient(s)
             const recipients = Array.isArray(params.to) ? params.to : [params.to];
-            
+
             // Create email content object
             const emailContent = {
                 from: settings.email,
@@ -404,10 +399,10 @@ export class LLMTaskHandler {
                 text: params.body,
                 html: params.html
             };
-            
+
             // Send the email
             await emailService.sendEmail(emailContent);
-            
+
             return {
                 success: true,
                 message: `✅ Email sent successfully to ${emailContent.to} with subject "${emailContent.subject}"`

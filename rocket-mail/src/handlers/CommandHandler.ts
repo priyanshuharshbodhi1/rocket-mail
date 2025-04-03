@@ -8,7 +8,7 @@ import {
     ISlashCommand,
     SlashCommandContext,
 } from "@rocket.chat/apps-engine/definition/slashcommands";
-import { RocketMailApp } from "../RocketMailApp";
+import { RocketMailApp } from "../../RocketMailApp";
 import { AddCommand } from "../commands/AddCommand";
 import { DeleteCommand } from "../commands/DeleteCommand";
 import { ListCommand } from "../commands/ListCommand";

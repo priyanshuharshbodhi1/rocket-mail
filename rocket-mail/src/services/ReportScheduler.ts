@@ -4,7 +4,7 @@ import {
     IPersistence,
     IRead,
 } from '@rocket.chat/apps-engine/definition/accessors';
-import { RocketMailApp } from '../RocketMailApp';
+import { RocketMailApp } from '../../RocketMailApp';
 import { ReportCommand } from '../commands/ReportCommand';
 import { SettingsIds } from '../enums/SettingsIds';
 import { RocketChatAssociationModel, RocketChatAssociationRecord } from '@rocket.chat/apps-engine/definition/metadata';

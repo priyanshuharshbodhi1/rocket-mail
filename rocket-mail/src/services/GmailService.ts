@@ -335,7 +335,7 @@ export class GmailService {
 
             if (receivedResponse.statusCode === 200 && receivedResponse.content) {
                 const receivedData = JSON.parse(receivedResponse.content);
-                report.total_mails_received = receivedData.resultSizeEstimate || 
+                report.total_mails_received = receivedData.resultSizeEstimate ||
                     (receivedData.messages ? receivedData.messages.length : 0);
             } else {
                 report.total_mails_received = 0;
@@ -354,7 +354,7 @@ export class GmailService {
 
             if (unreadResponse.statusCode === 200 && unreadResponse.content) {
                 const unreadData = JSON.parse(unreadResponse.content);
-                report.unread_mails = unreadData.resultSizeEstimate || 
+                report.unread_mails = unreadData.resultSizeEstimate ||
                     (unreadData.messages ? unreadData.messages.length : 0);
             } else {
                 report.unread_mails = 0;
@@ -373,7 +373,7 @@ export class GmailService {
 
             if (sentResponse.statusCode === 200 && sentResponse.content) {
                 const sentData = JSON.parse(sentResponse.content);
-                report.mails_sent = sentData.resultSizeEstimate || 
+                report.mails_sent = sentData.resultSizeEstimate ||
                     (sentData.messages ? sentData.messages.length : 0);
             } else {
                 report.mails_sent = 0;
@@ -392,7 +392,7 @@ export class GmailService {
 
             if (attachmentResponse.statusCode === 200 && attachmentResponse.content) {
                 const attachmentData = JSON.parse(attachmentResponse.content);
-                report.mails_with_attachments = attachmentData.resultSizeEstimate || 
+                report.mails_with_attachments = attachmentData.resultSizeEstimate ||
                     (attachmentData.messages ? attachmentData.messages.length : 0);
             } else {
                 report.mails_with_attachments = 0;
@@ -411,7 +411,7 @@ export class GmailService {
 
             if (deadlineResponse.statusCode === 200 && deadlineResponse.content) {
                 const deadlineData = JSON.parse(deadlineResponse.content);
-                report.mails_with_deadlines = deadlineData.resultSizeEstimate || 
+                report.mails_with_deadlines = deadlineData.resultSizeEstimate ||
                     (deadlineData.messages ? deadlineData.messages.length : 0);
             } else {
                 report.mails_with_deadlines = 0;
@@ -422,7 +422,7 @@ export class GmailService {
 
             // Common Gmail categories
             const categories = ['primary', 'social', 'promotions', 'updates', 'forums'];
-            
+
             for (const category of categories) {
                 const categoryQuery = `in:inbox category:${category} after:${startFormatted} before:${endFormatted}`;
                 const categoryResponse = await this.http.get('https://gmail.googleapis.com/gmail/v1/users/me/messages', {
@@ -436,9 +436,9 @@ export class GmailService {
 
                 if (categoryResponse.statusCode === 200 && categoryResponse.content) {
                     const categoryData = JSON.parse(categoryResponse.content);
-                    const count = categoryData.resultSizeEstimate || 
+                    const count = categoryData.resultSizeEstimate ||
                         (categoryData.messages ? categoryData.messages.length : 0);
-                    
+
                     if (count > 0) {
                         report.mails_by_category[category] = count;
                     }

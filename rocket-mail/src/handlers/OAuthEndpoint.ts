@@ -10,9 +10,8 @@ import {
     IApiRequest,
     IApiResponse,
 } from '@rocket.chat/apps-engine/definition/api';
-import { RocketMailApp } from '../RocketMailApp';
+import { RocketMailApp } from '../../RocketMailApp';
 import { OAuthService } from '../services/OAuthService';
-import { IUser } from '@rocket.chat/apps-engine/definition/users';
 
 export class OAuthEndpoint implements IApiEndpoint {
     public path = 'oauth-callback';

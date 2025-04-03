@@ -8,7 +8,7 @@ import {
     ISlashCommand,
     SlashCommandContext,
 } from '@rocket.chat/apps-engine/definition/slashcommands';
-import { RocketMailApp } from '../RocketMailApp';
+import { RocketMailApp } from '../../RocketMailApp';
 import { OAuthService } from '../services/OAuthService';
 import { getEmailSettings } from '../config/SettingsManager';
 import { EmailProviders } from '../enums/EmailProviders';

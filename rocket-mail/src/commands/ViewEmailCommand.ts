@@ -5,7 +5,7 @@ import {
     IPersistence,
 } from "@rocket.chat/apps-engine/definition/accessors";
 import { getEmailSettings } from "../config/SettingsManager";
-import { RocketMailApp } from "../RocketMailApp";
+import { RocketMailApp } from "../../RocketMailApp";
 import { EmailServiceFactory } from "../services/EmailServiceFactory";
 
 export class ViewEmailCommand {
@@ -35,7 +35,7 @@ export class ViewEmailCommand {
         }
 
         const emailId = args[0].trim();
-        
+
         // Basic validation that emailId is not empty
         if (!emailId) {
             messageBuilder.setText(
@@ -44,7 +44,7 @@ export class ViewEmailCommand {
             await modify.getCreator().finish(messageBuilder);
             return;
         }
-        
+
         messageBuilder.setText(`🔍 Retrieving email. Please wait...`);
         await modify.getCreator().finish(messageBuilder);
 
@@ -52,7 +52,7 @@ export class ViewEmailCommand {
             const settings = await getEmailSettings(
                 read.getEnvironmentReader().getSettings()
             );
-            
+
             try {
                 // Create the appropriate email service
                 const emailService = await EmailServiceFactory.createEmailService(
@@ -67,7 +67,7 @@ export class ViewEmailCommand {
                 try {
                     // Get the email by ID
                     const email = await emailService.getEmailById(emailId);
-                    
+
                     const resultMessageBuilder = modify
                         .getCreator()
                         .startMessage()
@@ -84,7 +84,7 @@ export class ViewEmailCommand {
                             email.content?.length > 2000 ? "..." : ""
                         }`
                     );
-                    
+
                     await modify.getCreator().finish(resultMessageBuilder);
                 } catch (emailError) {
                     // Handle specific email retrieval errors
@@ -93,13 +93,13 @@ export class ViewEmailCommand {
                         .startMessage()
                         .setSender(sender)
                         .setRoom(room);
-                    
+
                     if (emailError.message.includes("Invalid id")) {
                         errorMessageBuilder.setText(`❌ Invalid email ID format. Please use the ID provided by the search command.`);
                     } else {
                         errorMessageBuilder.setText(`❌ Error retrieving email: ${emailError.message}`);
                     }
-                    
+
                     await modify.getCreator().finish(errorMessageBuilder);
                 }
             } catch (error) {
@@ -110,7 +110,7 @@ export class ViewEmailCommand {
                         .startMessage()
                         .setSender(sender)
                         .setRoom(room);
-                    
+
                     authErrorMessage.setText(`🔒 ${error.message}`);
                     await modify.getCreator().finish(authErrorMessage);
                 } else {
@@ -119,13 +119,13 @@ export class ViewEmailCommand {
             }
         } catch (error) {
             this.app.getLogger().error(`Error viewing email: ${error}`);
-            
+
             const errorMessage = modify
                 .getCreator()
                 .startMessage()
                 .setSender(sender)
                 .setRoom(room);
-            
+
             errorMessage.setText(`❌ Error viewing email: ${error.message}`);
             await modify.getCreator().finish(errorMessage);
         }
