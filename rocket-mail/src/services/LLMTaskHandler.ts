@@ -11,7 +11,6 @@ import { MessageService } from "./MessageService";
 import { IContact } from "../types/interfaces/IContact";
 import { IEmailSettings } from "../types/interfaces/IEmailService";
 
-
 export class LLMTaskHandler {
     private llmService: LLMService;
     private logger: ILogger;
@@ -130,6 +129,8 @@ export class LLMTaskHandler {
     }
 
     private async executeAction(action: ILLMEmailAction, sender: any): Promise<ILLMTaskResult> {
+        this.logger.debug(`LLMTaskHandler.executeAction -> Executing action: ${action.action}`);
+        
         try {
             const settings = await getEmailSettings(this.read.getEnvironmentReader().getSettings());
             const emailService = await EmailServiceFactory.createEmailService(
@@ -140,31 +141,51 @@ export class LLMTaskHandler {
                 this.read,
                 this.persistence
             );
-
-            switch (action.action as LLMEmailActionType) {
+            
+            switch (action.action) {
                 case LLMEmailActionType.SEARCH_EMAILS:
                     return await this.handleSearchEmails(emailService, action.parameters);
-
+                
                 case LLMEmailActionType.COUNT_EMAILS:
                     return await this.handleCountEmails(emailService, action.parameters);
-
+                
                 case LLMEmailActionType.VIEW_EMAIL:
                     return await this.handleViewEmail(emailService, action.parameters);
-
+                
                 case LLMEmailActionType.SEND_EMAIL:
-                    return await this.handleSendEmail(emailService, settings, action.parameters);
-
+                    // Use the dedicated sendEmail function from the functions directory
+                    if (!this.app) {
+                        return {
+                            success: false,
+                            message: "App instance is not available. Unable to send email."
+                        };
+                    }
+                    
+                    const { sendEmail } = await import('../functions/SendEmail');
+                    const result = await sendEmail({
+                        params: action.parameters,
+                        sender,
+                        room: sender.room,
+                        read: this.read,
+                        modify: this.modify,
+                        http: this.http,
+                        persistence: this.persistence,
+                        app: this.app
+                    });
+                    return result;
+                
                 case LLMEmailActionType.SUMMARIZE:
                     return await this.handleSummarize(action.parameters, sender);
-
+                
                 case LLMEmailActionType.UNKNOWN:
                 default:
                     return {
                         success: false,
-                        message: "I couldn't understand what you wanted me to do. Please try rephrasing your request with more details about the email task you'd like to perform."
+                        message: `I couldn't understand that request. ${action.parameters?.error || ''}`
                     };
             }
         } catch (error) {
+            this.logger.error('Error executing action:', error);
             return {
                 success: false,
                 message: `Error executing email action: ${error.message}`

@@ -120,17 +120,55 @@ export class LLMService {
             }
 
             const data = JSON.parse(response.content);
-            if (!data.output || typeof data.output !== 'string') {
-                throw new Error("Invalid response from LLM API");
+            
+            // Debug the response structure
+            this.logger.debug("LLM Response Structure:", JSON.stringify(data, null, 2));
+            
+            // The DeepInfra API returns results in a different format
+            if (!data.results || !data.results[0] || !data.results[0].generated_text) {
+                throw new Error("Invalid response structure from LLM API");
             }
-
-            // Extract the JSON from the response
-            const jsonMatch = data.output.match(/\{[\s\S]*\}/);
-            if (!jsonMatch || !jsonMatch[0]) {
-                throw new Error("Could not extract JSON from LLM response");
+            
+            // Get the generated text from the first result
+            const generatedText = data.results[0].generated_text;
+            this.logger.debug("Generated Text:", generatedText);
+            
+            // Extract JSON from code block if present (remove markdown code block syntax)
+            let jsonText = generatedText;
+            if (jsonText.includes("```")) {
+                // Extract content between code block markers
+                const match = jsonText.match(/```(?:json)?\n([\s\S]*?)\n```/);
+                if (match && match[1]) {
+                    jsonText = match[1];
+                } else {
+                    // Try to find just the content after the opening code block
+                    const simpleMatch = jsonText.match(/```(?:json)?\n([\s\S]*)/);
+                    if (simpleMatch && simpleMatch[1]) {
+                        jsonText = simpleMatch[1].replace(/\n```$/, '');
+                    }
+                }
             }
-
-            const llmResponse = JSON.parse(jsonMatch[0]);
+            
+            // Try to find JSON object in the response text
+            if (!jsonText.trim().startsWith('{')) {
+                const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+                if (jsonMatch && jsonMatch[0]) {
+                    jsonText = jsonMatch[0];
+                }
+            }
+            
+            this.logger.debug("Extracted JSON Text:", jsonText);
+            
+            // Parse the extracted JSON
+            let llmResponse;
+            try {
+                llmResponse = JSON.parse(jsonText);
+            } catch (parseError) {
+                this.logger.error("Error parsing LLM JSON:", parseError);
+                this.logger.debug("Failed JSON Text:", jsonText);
+                throw new Error(`Could not parse JSON from LLM response: ${parseError.message}`);
+            }
+            
             this.logger.debug(`LLMService.processEmailTask -> LLM Response: ${JSON.stringify(llmResponse)}`);
 
             // Parse the LLM's response into our action format
@@ -322,17 +360,58 @@ export class LLMService {
             }
 
             const data = JSON.parse(response.content);
-            if (!data.output || typeof data.output !== 'string') {
-                throw new Error("Invalid response from LLM API");
+            
+            // Debug the response structure
+            this.logger.debug("LLM Response Structure:", JSON.stringify(data, null, 2));
+            
+            // The DeepInfra API returns results in a different format
+            if (!data.results || !data.results[0] || !data.results[0].generated_text) {
+                throw new Error("Invalid response structure from LLM API");
             }
-
-            // Extract the JSON from the response
-            const jsonMatch = data.output.match(/\{[\s\S]*\}/);
-            if (!jsonMatch || !jsonMatch[0]) {
-                throw new Error("Could not extract JSON from LLM response");
+            
+            // Get the generated text from the first result
+            const generatedText = data.results[0].generated_text;
+            this.logger.debug("Generated Text:", generatedText);
+            
+            // Extract JSON from code block if present (remove markdown code block syntax)
+            let jsonText = generatedText;
+            if (jsonText.includes("```")) {
+                // Extract content between code block markers
+                const match = jsonText.match(/```(?:json)?\n([\s\S]*?)\n```/);
+                if (match && match[1]) {
+                    jsonText = match[1];
+                } else {
+                    // Try to find just the content after the opening code block
+                    const simpleMatch = jsonText.match(/```(?:json)?\n([\s\S]*)/);
+                    if (simpleMatch && simpleMatch[1]) {
+                        jsonText = simpleMatch[1].replace(/\n```$/, '');
+                    }
+                }
             }
+            
+            // Try to find JSON object in the response text
+            if (!jsonText.trim().startsWith('{')) {
+                const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+                if (jsonMatch && jsonMatch[0]) {
+                    jsonText = jsonMatch[0];
+                }
+            }
+            
+            this.logger.debug("Extracted JSON Text:", jsonText);
+            
+            // Parse the extracted JSON
+            let llmResponse;
+            try {
+                llmResponse = JSON.parse(jsonText);
+            } catch (parseError) {
+                this.logger.error("Error parsing LLM JSON:", parseError);
+                this.logger.debug("Failed JSON Text:", jsonText);
+                throw new Error(`Could not parse JSON from LLM response: ${parseError.message}`);
+            }
+            
+            this.logger.debug(`LLMService.processSummarizeTask -> LLM Response: ${JSON.stringify(llmResponse)}`);
 
-            return JSON.parse(jsonMatch[0]);
+            return llmResponse;
         } catch (error) {
             this.logger.error(
                 `LLMService.processSummarizeTask -> Error processing instruction: ${error}`
@@ -397,8 +476,59 @@ export class LLMService {
             }
 
             const data = JSON.parse(response.content);
+            
+            // Debug the response structure
+            this.logger.debug("LLM Response Structure:", JSON.stringify(data, null, 2));
+            
+            // The DeepInfra API returns results in a different format
+            if (!data.results || !data.results[0] || !data.results[0].generated_text) {
+                throw new Error("Invalid response structure from LLM API");
+            }
+            
+            // Get the generated text from the first result
+            const generatedText = data.results[0].generated_text;
+            this.logger.debug("Generated Text:", generatedText);
+            
+            // Extract JSON from code block if present (remove markdown code block syntax)
+            let jsonText = generatedText;
+            if (jsonText.includes("```")) {
+                // Extract content between code block markers
+                const match = jsonText.match(/```(?:json)?\n([\s\S]*?)\n```/);
+                if (match && match[1]) {
+                    jsonText = match[1];
+                } else {
+                    // Try to find just the content after the opening code block
+                    const simpleMatch = jsonText.match(/```(?:json)?\n([\s\S]*)/);
+                    if (simpleMatch && simpleMatch[1]) {
+                        jsonText = simpleMatch[1].replace(/\n```$/, '');
+                    }
+                }
+            }
+            
+            // Try to find JSON object in the response text
+            if (!jsonText.trim().startsWith('{')) {
+                const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+                if (jsonMatch && jsonMatch[0]) {
+                    jsonText = jsonMatch[0];
+                }
+            }
+            
+            this.logger.debug("Extracted JSON Text:", jsonText);
+            
+            // Parse the extracted JSON
+            let llmResponse;
+            try {
+                llmResponse = JSON.parse(jsonText);
+            } catch (parseError) {
+                this.logger.error("Error parsing LLM JSON:", parseError);
+                this.logger.debug("Failed JSON Text:", jsonText);
+                throw new Error(`Could not parse JSON from LLM response: ${parseError.message}`);
+            }
+            
+            this.logger.debug(`LLMService.generateSummary -> LLM Response: ${JSON.stringify(llmResponse)}`);
+
             // Ensure we have a valid string before doing any operations
-            const outputStr = typeof data.output === 'string' ? data.output : '';
+            const outputStr = typeof llmResponse === 'string' ? llmResponse : '';
             const summary = outputStr
                 ? outputStr.replace(/^Summary:|\bSummary\b:/i, "").trim()
                 : "Failed to generate summary due to an error.";
