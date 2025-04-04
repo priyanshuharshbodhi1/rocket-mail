@@ -1,7 +1,7 @@
 export interface ISummarizeParams {
     action?: 'summarize'; 
     timeframe?: {
-        type: 'today' | 'week' | 'custom' | 'unread';
+        type: 'today' | 'week' | 'custom' | 'unread' | 'yesterday' | 'month';
         startDate?: string;
         endDate?: string;
     };

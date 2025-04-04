@@ -32,6 +32,12 @@ export interface IEmailDetails extends IEmailSummary {
     to: string;
     content: string;
     body: string;
+    attachments?: Array<{
+        filename: string;
+        contentType: string;
+        size: number;
+        content?: any;
+    }>;
 }
 
 /**
@@ -45,7 +51,7 @@ export interface IEmailService {
 
     searchEmails(params: IEmailSearchParams): Promise<IEmailSummary[]>;
 
-    countEmails(params: IEmailCountParams): Promise<Record<string, number>>;
+    countEmails(params: IEmailCountParams): Promise<Record<string, number> | number>;
 
     getEmailById(emailId: string): Promise<IEmailDetails>;
 

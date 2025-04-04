@@ -1,7 +1,14 @@
 import { IHttp, ILogger, IModify, IPersistence, IRead } from "@rocket.chat/apps-engine/definition/accessors";
-import { ILLMEmailAction, ILLMTaskResult, LLMEmailActionType } from "../models/LLMTask";
+import { RocketMailApp } from "../../RocketMailApp";
 import { LLMService } from "./LLMService";
 import { ContactService } from "./ContactService";
+import {
+    ILLMTaskRequest,
+    ILLMTaskResult,
+    ILLMEmailAction,
+    LLMEmailActionType,
+    ISummarizeParams,
+} from "../models/LLMTask";
 import { getEmailSettings } from "../config/SettingsManager";
 import { EmailServiceFactory } from "../email-providers/EmailServiceFactory";
 import { IRoom } from "@rocket.chat/apps-engine/definition/rooms";
@@ -9,11 +16,9 @@ import { MessageService } from "./MessagesRetrievalService";
 import { IContact } from "../types/interfaces/IContact";
 import { IEmailSettings } from "../types/interfaces/IEmailService";
 import { GmailService } from "./GmailService";
-import { RocketMailApp } from "../../RocketMailApp";
 
 export class LLMTaskHandler {
     private llmService: LLMService;
-    private logger: ILogger;
     private messageService: MessageService;
 
     constructor(
@@ -22,11 +27,10 @@ export class LLMTaskHandler {
         private readonly modify: IModify,
         private readonly persistence: IPersistence,
         private readonly contactService: ContactService,
-        logger: ILogger,
+        private readonly logger: ILogger,
         private readonly app?: RocketMailApp
     ) {
         this.llmService = new LLMService(http, logger, app);
-        this.logger = logger;
         this.messageService = new MessageService(logger);
     }
 
@@ -66,66 +70,16 @@ export class LLMTaskHandler {
         }
     }
 
-    /**
-     * Format contacts into a readable string for LLM context
-     */
-    private formatContactsForContext(contacts: IContact[]): string {
-        if (!contacts || contacts.length === 0) {
-            return "No saved contacts.";
-        }
-
-        return contacts.map(contact =>
-            `${contact.name}: ${contact.email}`
-        ).join(", ");
-    }
-
-    /**
-     * Provide information about available functions for the LLM
-     */
-    private getAvailableFunctionsContext(): string {
-        return `
-        1. search_emails(params: {startDate, endDate, sender, subject, body, limit}) - Search emails matching criteria
-        2. count_emails(params: {startDate, endDate, sender}) - Count emails in a date range
-        3. view_email(emailId) - View a specific email by ID
-        4. send_email(to, subject, body, cc) - Send a new email
-        5. get_report(days) - Generate an email activity report for past N days
-        6. summarize_and_send(recipient, days, participants, subject, format) - Summarize chat messages and send them via email
-           - recipient: Email address to send the summary to (REQUIRED)
-           - days: Number of days to include in the summary (default: 2)
-           - participants: List of usernames to filter messages by (optional)
-           - subject: Custom subject for the email (optional)
-           - format: Format for the summary - 'bullet', 'paragraph', 'detailed', or 'brief' (optional)
-        `;
-    }
-
     private async processContactReferences(task: string, userId: string): Promise<string> {
         try {
-            // Get user contacts
+            // Process any contact references in the task text
             const contacts = await this.contactService.getContacts(userId, this.read);
-
-            // If no contacts, just return the original task
-            if (!contacts || contacts.length === 0) {
-                return task;
-            }
-
             let processedTask = task;
 
-            // Check for contact references and replace them with email addresses
+            // Replace contact references (e.g., @John) with their email addresses
             for (const contact of contacts) {
-                // Match patterns like "@contact_name" or "contact:contact_name"
-                const patterns = [
-                    new RegExp(`@${contact.name}\\b`, 'gi'),
-                    new RegExp(`contact:${contact.name}\\b`, 'gi'),
-                    new RegExp(`\\b${contact.name}\\b`, 'gi')
-                ];
-
-                for (const pattern of patterns) {
-                    if (pattern.test(processedTask)) {
-                        // Replace with the actual email address
-                        processedTask = processedTask.replace(pattern, contact.email);
-                        break; // Only replace once per contact
-                    }
-                }
+                const contactRegex = new RegExp(`@${contact.name}\\b`, 'gi');
+                processedTask = processedTask.replace(contactRegex, contact.email);
             }
 
             return processedTask;
@@ -135,11 +89,76 @@ export class LLMTaskHandler {
         }
     }
 
-    private async executeAction(action: ILLMEmailAction, sender: any, room?: IRoom): Promise<ILLMTaskResult> {
-        this.logger.debug(`LLMTaskHandler.executeAction -> Executing action: ${action.action}`);
+    private formatContactsForContext(contacts: IContact[]): string {
+        if (!contacts || contacts.length === 0) {
+            return "[]";
+        }
 
+        const contactsObj = contacts.reduce((obj, contact) => {
+            obj[contact.name] = contact.email;
+            return obj;
+        }, {});
+
+        return JSON.stringify(contactsObj, null, 2);
+    }
+
+    private getAvailableFunctionsContext(): string {
+        return `
+        Available functions:
+
+        1. send-email({
+            to: [string],   // Required. Array of email addresses to send to
+            cc: [string],   // Optional. Array of email addresses to CC
+            bcc: [string],  // Optional. Array of email addresses to BCC
+            subject: string, // Required. Subject of the email
+            body: string    // Required. Body content of the email
+        }) - Sends an email to the specified recipients.
+
+        2. search-emails({
+            query: string,  // Optional. Search term to find in emails
+            from: string,   // Optional. Filter emails from a specific sender
+            to: string,     // Optional. Filter emails sent to a specific recipient
+            subject: string, // Optional. Filter emails with specific subject text
+            after: string,  // Optional. Filter emails after this date (format: YYYY-MM-DD)
+            before: string, // Optional. Filter emails before this date (format: YYYY-MM-DD)
+            hasAttachment: boolean, // Optional. Filter emails with attachments
+            limit: number   // Optional. Maximum number of results to return
+        }) - Searches for emails matching the criteria.
+
+        3. count-emails({
+            sender: string,        // Optional. Email address of the sender
+            recipient: string,     // Optional. Email address of the recipient
+            subject: string,       // Optional. Text to search for in subject
+            body: string,          // Optional. Text to search for in body
+            keywords: [string],    // Optional. Keywords to search for in emails
+            startDate: string,     // Optional. Start date (YYYY-MM-DD)
+            endDate: string,       // Optional. End date (YYYY-MM-DD)
+            folder: string,        // Optional. Folder/label name
+            hasAttachment: boolean // Optional. Whether email has attachments
+        }) - Counts emails matching the specified criteria.
+
+        4. summarize-and-send({
+            days: number,          // Optional. Number of past days to include (default: 2)
+            participants: [string], // Optional. Filter messages by specific participants
+            recipient: string,     // Required. Email address to send the summary to
+            subject: string,       // Optional. Subject for the email
+            format: string,        // Optional. Format of the summary (brief, detailed, bullet, paragraph)
+            additionalContent: string // Optional. Additional text to include with the summary
+        }) - Summarizes chat messages and sends the summary via email.
+
+        5. get-report({
+            days: number           // Optional. Number of past days to include (default: 7)
+        }) - Generates an email activity report for the specified number of days.
+        `;
+    }
+
+    private async executeAction(action: ILLMEmailAction, sender: any, room?: IRoom): Promise<ILLMTaskResult> {
         try {
-            const settings = await getEmailSettings(this.read.getEnvironmentReader().getSettings());
+            // Create the appropriate email service
+            const settings = await getEmailSettings(
+                this.read.getEnvironmentReader().getSettings()
+            );
+
             const emailService = await EmailServiceFactory.createEmailService(
                 settings,
                 sender.id,
@@ -148,13 +167,40 @@ export class LLMTaskHandler {
                 this.read,
                 this.persistence
             );
+            this.logger.debug(` executeAction details ${JSON.stringify(action)}`);
+
+            // Check if there's user guidance that should be shown
+            if (action.userGuidance) {
+                return {
+                    success: true,
+                    message: `${action.rationale}\n\n💡 Suggestion: ${action.userGuidance}`
+                };
+            }
 
             switch (action.action) {
                 case LLMEmailActionType.SEARCH_EMAILS:
                     return await this.handleSearchEmails(emailService, action.parameters);
 
                 case LLMEmailActionType.COUNT_EMAILS:
-                    return await this.handleCountEmails(emailService, action.parameters);
+                    // Use the dedicated countEmails function
+                    if (!this.app) {
+                        return {
+                            success: false,
+                            message: "App instance is not available. Unable to count emails."
+                        };
+                    }
+
+                    const { countEmails } = await import('../functions/CountEmails');
+                    const countResult = await countEmails({
+                        params: action.parameters,
+                        sender,
+                        read: this.read,
+                        modify: this.modify,
+                        http: this.http,
+                        persistence: this.persistence,
+                        app: this.app
+                    });
+                    return countResult;
 
                 case LLMEmailActionType.VIEW_EMAIL:
                     return await this.handleViewEmail(emailService, action.parameters);
@@ -209,6 +255,35 @@ export class LLMTaskHandler {
                 case LLMEmailActionType.SUMMARIZE:
                     return await this.handleSummarize(action.parameters, sender, room);
 
+                case LLMEmailActionType.GET_REPORT:
+                    // Use the ReportCommand directly
+                    if (!this.app) {
+                        return {
+                            success: false,
+                            message: "App instance is not available. Unable to generate report."
+                        };
+                    }
+
+                    const { ReportCommand } = await import('../handlers/ReportHandler');
+                    const reportCommand = new ReportCommand(this.app);
+                    const days = action.parameters.days || 7;
+
+                    // The execute method returns void, so we need to provide our own response
+                    await reportCommand.execute(
+                        [days.toString()],
+                        sender,
+                        room || sender.room,
+                        this.read,
+                        this.modify,
+                        this.http,
+                        this.persistence
+                    );
+
+                    return {
+                        success: true,
+                        message: `I've generated a report of your email activity for the past ${days} days.`
+                    };
+
                 case LLMEmailActionType.UNKNOWN:
                 default:
                     return {
@@ -225,10 +300,96 @@ export class LLMTaskHandler {
         }
     }
 
-    /**
-     * Handle the summarize action
-     */
-    private async handleSummarize(params: any, sender: any, room?: IRoom): Promise<ILLMTaskResult> {
+    private async handleSearchEmails(emailService: GmailService, parameters: any): Promise<ILLMTaskResult> {
+        try {
+            const emails = await emailService.searchEmails(parameters);
+
+            if (!emails || emails.length === 0) {
+                return {
+                    success: true,
+                    message: "No emails found matching your criteria."
+                };
+            }
+
+            const emailList = emails.map((email: any, index: number) => {
+                return `${index + 1}. **${email.subject || '(No Subject)'}**\n   From: ${email.from || 'Unknown'}\n   Date: ${email.date || 'Unknown'}\n   ID: \`${email.id}\``;
+            }).join('\n\n');
+
+            return {
+                success: true,
+                message: `Found ${emails.length} email(s) matching your criteria:\n\n${emailList}\n\nTo view a specific email, use \`/rocket-mail view <ID>\` with the ID shown above.`,
+                data: { emails }
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Error searching emails: ${error.message}`
+            };
+        }
+    }
+
+    private async handleCountEmails(emailService: GmailService, parameters: any): Promise<ILLMTaskResult> {
+        try {
+            const count = await emailService.countEmails(parameters);
+
+            return {
+                success: true,
+                message: `Found ${count} email(s) matching your criteria.`,
+                data: { count: count as number }
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Error counting emails: ${error.message}`
+            };
+        }
+    }
+
+    private async handleViewEmail(emailService: GmailService, parameters: any): Promise<ILLMTaskResult> {
+        try {
+            if (!parameters.id) {
+                return {
+                    success: false,
+                    message: "No email ID provided. Please specify which email to view."
+                };
+            }
+
+            const email = await emailService.getEmailById(parameters.id);
+
+            if (!email) {
+                return {
+                    success: false,
+                    message: `Email with ID ${parameters.id} not found.`
+                };
+            }
+
+            let message = `### Email: ${email.subject || '(No Subject)'}\n\n`;
+            message += `**From:** ${email.from || 'Unknown'}\n`;
+            message += `**To:** ${email.to || 'Unknown'}\n`;
+            message += `**Date:** ${email.date || 'Unknown'}\n\n`;
+            message += `${email.body || '(No content)'}\n\n`;
+
+            if (email.attachments && email.attachments.length > 0) {
+                message += `**Attachments:** ${email.attachments.length}\n`;
+                email.attachments.forEach((attachment: any) => {
+                    message += `- ${attachment.filename || 'Unnamed attachment'} (${attachment.mimeType || 'unknown type'})\n`;
+                });
+            }
+
+            return {
+                success: true,
+                message,
+                data: { email }
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Error viewing email: ${error.message}`
+            };
+        }
+    }
+
+    private async handleSummarize(parameters: ISummarizeParams, sender: any, room?: IRoom): Promise<ILLMTaskResult> {
         try {
             if (!room && !sender.room) {
                 return {
@@ -240,199 +401,41 @@ export class LLMTaskHandler {
             const currentRoom = room || sender.room;
             this.logger.debug(`Room object in handleSummarize: ${JSON.stringify(currentRoom)}`);
 
-            // Get messages based on the parameters
             const messages = await this.messageService.getMessages(
                 currentRoom,
                 this.read,
                 sender,
-                params
+                parameters
             );
 
-            if (messages.length === 0) {
-                return {
-                    success: false,
-                    message: "No messages found for summarization."
-                };
-            }
-
-            // Format messages for summarization
-            const formattedMessages = this.messageService.formatMessagesForSummary(messages);
-
-            // Generate summary
-            const summary = await this.llmService.generateSummary(
-                formattedMessages,
-                currentRoom.displayName || currentRoom.slugifiedName || 'Chat'
-            );
-
-            // If recipient is specified, send as email
-            if (params.recipient_email) {
-                const emailSettings = await getEmailSettings(this.read.getEnvironmentReader().getSettings());
-                const emailService = await EmailServiceFactory.createEmailService(
-                    emailSettings,
-                    sender.id,
-                    this.logger,
-                    this.http,
-                    this.read,
-                    this.persistence
-                );
-
-                // Send the summary as an email
-                await emailService.sendEmail({
-                    from: emailSettings.email,
-                    to: params.recipient_email,
-                    subject: `Summary of ${currentRoom.displayName || currentRoom.slugifiedName || 'Conversation'}`,
-                    text: summary
-                });
-
+            if (!messages || messages.length === 0) {
                 return {
                     success: true,
-                    message: `📧 Successfully sent summary to ${params.recipient_email}:\n\n${summary.substring(0, 200)}...`
+                    message: "No messages found to summarize based on your criteria."
                 };
             }
 
-            // Otherwise just return the summary
+            // Format messages for the summary
+            const formattedMessages = this.messageService.formatMessagesForSummary(messages);
+
+            // Generate a summary using LLM
+            const channelName = currentRoom.displayName || currentRoom.name || "Channel";
+            const summary = await this.llmService.generateSummary(formattedMessages, channelName);
+
+            let response = `## Summary of ${messages.length} messages\n\n${summary}`;
+
             return {
                 success: true,
-                message: `📝 **Summary**\n\n${summary}`
+                message: response,
+                data: {
+                    summary,
+                    messageCount: messages.length
+                }
             };
         } catch (error) {
-            this.logger.error('Error handling summarize action:', error);
             return {
                 success: false,
                 message: `Failed to generate summary: ${error.message}`
-            };
-        }
-    }
-
-    private async handleSearchEmails(emailService: GmailService, params: any): Promise<ILLMTaskResult> {
-        try {
-            const emails = await emailService.searchEmails(params);
-
-            if (emails.length === 0) {
-                return {
-                    success: true,
-                    message: "No emails found matching your criteria."
-                };
-            }
-
-            let resultText = "**Found Emails**\n\n";
-
-            emails.forEach((email, index) => {
-                resultText += `**${index + 1}.** From: ${email.from}\n`;
-                resultText += `   Date: ${email.date}\n`;
-                resultText += `   Subject: ${email.subject}\n`;
-                resultText += `   ID: ${email.id}\n\n`;
-            });
-
-            resultText += `*To view the full content of an email, you can ask: "show me email with ID ${emails[0].id}"*`;
-
-            return {
-                success: true,
-                message: resultText,
-                data: emails
-            };
-        } catch (error) {
-            this.logger.error('Error searching emails:', error);
-            return {
-                success: false,
-                message: `Failed to search emails: ${error.message}`
-            };
-        }
-    }
-
-    private async handleCountEmails(emailService: GmailService, params: any): Promise<ILLMTaskResult> {
-        try {
-            const counts = await emailService.countEmails(params);
-
-            let resultText = "**Email Count Results**\n\n";
-            let total = 0;
-
-            for (const [date, count] of Object.entries(counts)) {
-                resultText += `${date}: ${count} emails\n`;
-                total += count;
-            }
-
-            resultText += `\n**Total: ${total} emails**`;
-
-            if (total === 0) {
-                resultText = "No emails found for the specified time period.";
-            }
-
-            return {
-                success: true,
-                message: resultText,
-                data: counts
-            };
-        } catch (error) {
-            this.logger.error('Error counting emails:', error);
-            return {
-                success: false,
-                message: `Failed to count emails: ${error.message}`
-            };
-        }
-    }
-
-    private async handleViewEmail(emailService: GmailService, params: any): Promise<ILLMTaskResult> {
-        try {
-            const email = await emailService.getEmailById(params.emailId);
-
-            const resultText = `**Email Details**\n\n` +
-                `From: ${email.from}\n` +
-                `To: ${email.to}\n` +
-                `Date: ${email.date}\n` +
-                `Subject: ${email.subject}\n\n` +
-                `**Content**:\n${email.content?.substring(0, 1500)}${
-                    email.content?.length > 1500 ? "..." : ""
-                }`;
-
-            return {
-                success: true,
-                message: resultText,
-                data: email
-            };
-        } catch (error) {
-            this.logger.error('Error viewing email:', error);
-            return {
-                success: false,
-                message: `Failed to retrieve email: ${error.message}`
-            };
-        }
-    }
-
-    private async handleSendEmail(emailService: GmailService, settings: IEmailSettings, params: any): Promise<ILLMTaskResult> {
-        try {
-            // Validate required parameters
-            if (!params.to || !params.body) {
-                return {
-                    success: false,
-                    message: "Missing required parameters for sending email. Please specify recipient and message content."
-                };
-            }
-
-            // Format recipient(s)
-            const recipients = Array.isArray(params.to) ? params.to : [params.to];
-
-            // Create email content object
-            const emailContent = {
-                from: settings.email,
-                to: recipients.join(', '),
-                subject: params.subject || "No Subject",
-                text: params.body,
-                html: params.html
-            };
-
-            // Send the email
-            await emailService.sendEmail(emailContent);
-
-            return {
-                success: true,
-                message: `✅ Email sent successfully to ${emailContent.to} with subject "${emailContent.subject}"`
-            };
-        } catch (error) {
-            this.logger.error('Error sending email:', error);
-            return {
-                success: false,
-                message: `Failed to send email: ${error.message}`
             };
         }
     }

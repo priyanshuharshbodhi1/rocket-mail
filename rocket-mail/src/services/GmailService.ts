@@ -123,26 +123,34 @@ export class GmailService {
             // Build Gmail query string
             let query = 'in:inbox';
 
-            if (params.sender) {
-                query += ` from:${params.sender}`;
+            if (params.from) {
+                query += ` from:${params.from}`;
+            }
+
+            if (params.to) {
+                query += ` to:${params.to}`;
             }
 
             if (params.subject) {
                 query += ` subject:(${params.subject})`;
             }
 
-            if (params.body) {
-                query += ` ${params.body}`;
+            if (params.query) {
+                query += ` ${params.query}`;
             }
 
-            if (params.startDate) {
-                const startDate = new Date(params.startDate);
+            if (params.after) {
+                const startDate = new Date(params.after);
                 query += ` after:${startDate.getFullYear()}/${startDate.getMonth() + 1}/${startDate.getDate()}`;
             }
 
-            if (params.endDate) {
-                const endDate = new Date(params.endDate);
+            if (params.before) {
+                const endDate = new Date(params.before);
                 query += ` before:${endDate.getFullYear()}/${endDate.getMonth() + 1}/${endDate.getDate()}`;
+            }
+
+            if (params.hasAttachment) {
+                query += ` has:attachment`;
             }
 
             const limit = params.limit ? String(params.limit) : '20';
@@ -211,7 +219,7 @@ export class GmailService {
         }
     }
 
-    public async countEmails(params: IEmailCountParams): Promise<Record<string, number>> {
+    public async countEmails(params: IEmailCountParams): Promise<Record<string, number> | number> {
         this.logger.debug('GmailService.countEmails -> Counting emails with params:', params);
 
         try {
@@ -222,6 +230,35 @@ export class GmailService {
 
             if (params.sender) {
                 query += ` from:${params.sender}`;
+            }
+
+            if (params.recipient) {
+                query += ` to:${params.recipient}`;
+            }
+
+            if (params.subject) {
+                query += ` subject:(${params.subject})`;
+            }
+
+            if (params.body) {
+                query += ` ${params.body}`;
+            }
+
+            if (params.keywords && params.keywords.length > 0) {
+                const keywordQuery = params.keywords.join(' OR ');
+                query += ` (${keywordQuery})`;
+            }
+
+            if (params.folder) {
+                query += ` in:${params.folder}`;
+            }
+
+            if (params.hasAttachment) {
+                query += ` has:attachment`;
+            }
+
+            if (params.isUnread) {
+                query += ` is:unread`;
             }
 
             if (params.startDate && params.endDate) {
@@ -246,11 +283,16 @@ export class GmailService {
                 }
 
                 const data = JSON.parse(response.content);
+                const count = data.resultSizeEstimate || (data.messages ? data.messages.length : 0);
 
-                // Return the count by date range
+                // If detailed parameter is not provided, just return a single number
+                if (!params.detailed) {
+                    return count;
+                }
+
+                // Return the count by date range for detailed view
                 return {
-                    [`${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`]:
-                        data.resultSizeEstimate || (data.messages ? data.messages.length : 0)
+                    [`${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`]: count
                 };
             } else {
                 // If no date range specified, count emails from last 7 days
@@ -281,6 +323,12 @@ export class GmailService {
                         const dateKey = day.toISOString().split('T')[0];
                         results[dateKey] = count;
                     }
+                }
+
+                // If detailed parameter is not provided, just return the total count
+                if (!params.detailed) {
+                    const totalCount = Object.values(results).reduce((sum, count) => sum + count, 0);
+                    return totalCount;
                 }
 
                 return results;

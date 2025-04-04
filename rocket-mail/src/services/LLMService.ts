@@ -46,12 +46,22 @@ export class LLMService {
 
 #Follow these guidelines:
     - Your primary goal is to convert user input into a structured JSON format for email actions.
-    - Always respond with a JSON object that contains the keys "action", "parameters", and "rationale".
-    - The "action" key should be one of the following values: "send-email", "summarize", or "unknown".
+    - Always respond with a JSON object that contains the keys "action", "parameters", "rationale", and optionally "user_guidance".
+    - The "action" key should be one of the following values: "send-email", "search-emails", "count-emails", "summarize-and-send" or "unknown".
+    - Don't make mistakes like giving action as "count_emails" instead of "count-emails".
     - The "parameters" key should be a JSON object containing the parameters for the action.
+    - Always provide appropriate default values for missing parameters:
+      * For count-emails and search-emails, if no time frame is specified, use "last month" for startDate
+      * For count-emails, if sender/recipient is ambiguous, try to infer from context (e.g., "emails to me" = user's own email)
+    - For date parameters, use the exact formats:
+      * For absolute dates: "YYYY-MM-DD" format
+      * For relative dates, only use these exact phrases: "today", "yesterday", "last week", "past week", "last month", "X days ago" (where X is a number)
+      * Don't use phrases like "in the last X days" or "last X days" - use "X days ago" instead
     - The "rationale" key should contain a brief explanation of why this action was chosen.
+    - If the query is incomplete or could be improved, include a "user_guidance" key with a helpful suggestion
+      * Example: "user_guidance": "Try rephrasing your request with a specific time period for more accurate results."
     - Never make up email content that the user didn't specify
-    - For send-email, ensure all required parameters (to, subject, body) are included
+    - For any action, ensure all required parameters are included
     - If the task doesn't clearly map to an email action, use "unknown" with an explanation
 
 #You have access to the following contacts:
@@ -59,6 +69,7 @@ export class LLMService {
 
 #You have access to the following functions:
     ${taskRequest.availableFunctions ? taskRequest.availableFunctions : ""}
+#Remember every parameter you give as a response should be in proper format so that it can be parsed easily by the software.
 
 #EXAMPLE TO HELP YOU UNDERSTAND THE TASK:
         -->Suppose user gives a TASK REQUEST:
@@ -72,7 +83,7 @@ export class LLMService {
                 "parameters" : {
                     "to" : ["boss@example.com"],
                     "subject" : "Extension of deadline for project X",
-                    "body" : "body of the email",
+                    "body" : "Hello Boss,\n\nI am writing to extend the deadline for project X by one week.\n\nBest regards,\n[Your Name]",
                     "cc" : []
                 },
                 "rationale" : "brief explanation of why this action was chosen"
@@ -120,19 +131,19 @@ export class LLMService {
             }
 
             const data = JSON.parse(response.content);
-            
+
             // Debug the response structure
             this.logger.debug("LLM Response Structure:", JSON.stringify(data, null, 2));
-            
+
             // The DeepInfra API returns results in a different format
             if (!data.results || !data.results[0] || !data.results[0].generated_text) {
                 throw new Error("Invalid response structure from LLM API");
             }
-            
+
             // Get the generated text from the first result
             const generatedText = data.results[0].generated_text;
             this.logger.debug("Generated Text:", generatedText);
-            
+
             // Extract JSON from code block if present (remove markdown code block syntax)
             let jsonText = generatedText;
             if (jsonText.includes("```")) {
@@ -148,7 +159,7 @@ export class LLMService {
                     }
                 }
             }
-            
+
             // Try to find JSON object in the response text
             if (!jsonText.trim().startsWith('{')) {
                 const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
@@ -156,9 +167,9 @@ export class LLMService {
                     jsonText = jsonMatch[0];
                 }
             }
-            
+
             this.logger.debug("Extracted JSON Text:", jsonText);
-            
+
             // Parse the extracted JSON
             let llmResponse;
             try {
@@ -168,14 +179,21 @@ export class LLMService {
                 this.logger.debug("Failed JSON Text:", jsonText);
                 throw new Error(`Could not parse JSON from LLM response: ${parseError.message}`);
             }
-            
+
             this.logger.debug(`LLMService.processEmailTask -> LLM Response: ${JSON.stringify(llmResponse)}`);
 
             // Parse the LLM's response into our action format
+            const actionType = this.mapActionType(llmResponse.action);
             const emailAction: ILLMEmailAction = {
-                action: this.mapActionType(llmResponse.action),
+                action: actionType,
                 parameters: llmResponse.parameters || {},
+                rationale: llmResponse.rationale || ''
             };
+
+            // If there's user guidance provided, add it to the action
+            if (llmResponse.user_guidance) {
+                emailAction.userGuidance = llmResponse.user_guidance;
+            }
 
             // Special handling for summarize action - map to appropriate existing command
             if (emailAction.action === LLMEmailActionType.SUMMARIZE) {
@@ -360,19 +378,19 @@ export class LLMService {
             }
 
             const data = JSON.parse(response.content);
-            
+
             // Debug the response structure
             this.logger.debug("LLM Response Structure:", JSON.stringify(data, null, 2));
-            
+
             // The DeepInfra API returns results in a different format
             if (!data.results || !data.results[0] || !data.results[0].generated_text) {
                 throw new Error("Invalid response structure from LLM API");
             }
-            
+
             // Get the generated text from the first result
             const generatedText = data.results[0].generated_text;
             this.logger.debug("Generated Text:", generatedText);
-            
+
             // Extract JSON from code block if present (remove markdown code block syntax)
             let jsonText = generatedText;
             if (jsonText.includes("```")) {
@@ -388,7 +406,7 @@ export class LLMService {
                     }
                 }
             }
-            
+
             // Try to find JSON object in the response text
             if (!jsonText.trim().startsWith('{')) {
                 const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
@@ -396,9 +414,9 @@ export class LLMService {
                     jsonText = jsonMatch[0];
                 }
             }
-            
+
             this.logger.debug("Extracted JSON Text:", jsonText);
-            
+
             // Parse the extracted JSON
             let llmResponse;
             try {
@@ -408,7 +426,7 @@ export class LLMService {
                 this.logger.debug("Failed JSON Text:", jsonText);
                 throw new Error(`Could not parse JSON from LLM response: ${parseError.message}`);
             }
-            
+
             this.logger.debug(`LLMService.processSummarizeTask -> LLM Response: ${JSON.stringify(llmResponse)}`);
 
             return llmResponse;
@@ -476,19 +494,19 @@ export class LLMService {
             }
 
             const data = JSON.parse(response.content);
-            
+
             // Debug the response structure
             this.logger.debug("LLM Response Structure:", JSON.stringify(data, null, 2));
-            
+
             // The DeepInfra API returns results in a different format
             if (!data.results || !data.results[0] || !data.results[0].generated_text) {
                 throw new Error("Invalid response structure from LLM API");
             }
-            
+
             // Get the generated text from the first result
             const generatedText = data.results[0].generated_text;
             this.logger.debug("Generated Text:", generatedText);
-            
+
             // Extract JSON from code block if present (remove markdown code block syntax)
             let jsonText = generatedText;
             if (jsonText.includes("```")) {
@@ -504,7 +522,7 @@ export class LLMService {
                     }
                 }
             }
-            
+
             // Try to find JSON object in the response text
             if (!jsonText.trim().startsWith('{')) {
                 const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
@@ -512,9 +530,9 @@ export class LLMService {
                     jsonText = jsonMatch[0];
                 }
             }
-            
+
             this.logger.debug("Extracted JSON Text:", jsonText);
-            
+
             // Parse the extracted JSON
             let llmResponse;
             try {
@@ -524,7 +542,7 @@ export class LLMService {
                 this.logger.debug("Failed JSON Text:", jsonText);
                 throw new Error(`Could not parse JSON from LLM response: ${parseError.message}`);
             }
-            
+
             this.logger.debug(`LLMService.generateSummary -> LLM Response: ${JSON.stringify(llmResponse)}`);
 
             // Ensure we have a valid string before doing any operations

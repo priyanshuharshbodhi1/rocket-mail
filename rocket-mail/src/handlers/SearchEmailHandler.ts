@@ -43,23 +43,24 @@ export class SearchEmailCommand {
                 if (arg.startsWith("subject:")) {
                     searchParams.subject = arg.substring(8).trim();
                 } else if (arg.startsWith("from:")) {
-                    searchParams.sender = arg.substring(5).trim();
+                    searchParams.from = arg.substring(5).trim();
                 } else if (arg.startsWith("body:")) {
-                    searchParams.body = arg.substring(5).trim();
+                    // Store body text in query parameter
+                    searchParams.query = arg.substring(5).trim();
                 } else if (arg.startsWith("since:")) {
                     const dateStr = arg.substring(6).trim();
                     // Validate date format
                     if (dateStr && !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
                         throw new Error(`Invalid date format for 'since'. Use YYYY-MM-DD.`);
                     }
-                    searchParams.startDate = dateStr;
+                    searchParams.after = dateStr;
                 } else if (arg.startsWith("until:")) {
                     const dateStr = arg.substring(6).trim();
                     // Validate date format
                     if (dateStr && !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
                         throw new Error(`Invalid date format for 'until'. Use YYYY-MM-DD.`);
                     }
-                    searchParams.endDate = dateStr;
+                    searchParams.before = dateStr;
                 } else if (arg.startsWith("limit:")) {
                     const limitStr = arg.substring(6).trim();
                     const limit = parseInt(limitStr);
@@ -67,9 +68,9 @@ export class SearchEmailCommand {
                         throw new Error(`Invalid limit value. Must be a positive number.`);
                     }
                     searchParams.limit = limit;
-                } else if (!searchParams.body) {
-                    // If no specific parameter is provided, treat as body search
-                    searchParams.body = arg;
+                } else if (!searchParams.query) {
+                    // If no specific parameter is provided, treat as general query
+                    searchParams.query = arg;
                 }
             }
 
@@ -142,29 +143,15 @@ export class SearchEmailCommand {
             } catch (error) {
                 // Check if this is an authentication error
                 if (error.message && error.message.includes("not authenticated")) {
-                    const authErrorMessage = modify
-                        .getCreator()
-                        .startMessage()
-                        .setSender(sender)
-                        .setRoom(room);
-
-                    authErrorMessage.setText(`🔒 ${error.message}`);
-                    await modify.getCreator().finish(authErrorMessage);
+                    messageBuilder.setText(`🔒 ${error.message} - Please use /rocket-mail login to authenticate first.`);
                 } else {
-                    throw error;
+                    messageBuilder.setText(`❌ Error connecting to email service: ${error.message}`);
                 }
+                await modify.getCreator().finish(messageBuilder);
             }
         } catch (error) {
-            this.app.getLogger().error("Error searching emails:", error);
-
-            const errorMessage = modify
-                .getCreator()
-                .startMessage()
-                .setSender(sender)
-                .setRoom(room);
-
-            errorMessage.setText(`❌ Error searching emails: ${error.message}`);
-            await modify.getCreator().finish(errorMessage);
+            messageBuilder.setText(`❌ Error retrieving email settings: ${error.message}`);
+            await modify.getCreator().finish(messageBuilder);
         }
     }
 }
