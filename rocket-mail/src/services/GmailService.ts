@@ -493,6 +493,7 @@ export class GmailService {
                 to: toHeader ? toHeader.value : 'Unknown',
                 subject: subjectHeader ? subjectHeader.value : '(No Subject)',
                 date: dateHeader ? dateHeader.value : 'Unknown',
+                body: content || 'No content found',
                 content: content || 'No content found'
             };
         } catch (error) {

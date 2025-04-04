@@ -38,10 +38,20 @@ export interface IEmailSendParams {
     body: string;
     html?: string;
     cc?: string[];
+    recipient?: string; // For compatibility with sendEmail function
 }
 
 export interface IEmailViewParams {
     emailId: string;
+}
+
+export interface ISummarizeAndSendParams {
+    days?: number;
+    participants?: string[];
+    recipient: string;
+    subject?: string;
+    additionalContent?: string;
+    format?: 'bullet' | 'paragraph' | 'detailed' | 'brief';
 }
 
 export enum LLMEmailActionType {
@@ -50,5 +60,6 @@ export enum LLMEmailActionType {
     VIEW_EMAIL = 'view-email',
     SEND_EMAIL = 'send-email',
     SUMMARIZE = 'summarize',
+    SUMMARIZE_AND_SEND = 'summarize-and-send',
     UNKNOWN = 'unknown'
 }

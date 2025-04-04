@@ -3,13 +3,13 @@ import { ILLMEmailAction, ILLMTaskResult, LLMEmailActionType } from "../models/L
 import { LLMService } from "./LLMService";
 import { ContactService } from "./ContactService";
 import { getEmailSettings } from "../config/SettingsManager";
-import { RocketMailApp } from "../../RocketMailApp";
 import { EmailServiceFactory } from "../email-providers/EmailServiceFactory";
-import { GmailService } from "./GmailService";
-import { ReportCommand } from "../handlers/ReportHandler";
+import { IRoom } from "@rocket.chat/apps-engine/definition/rooms";
 import { MessageService } from "./MessagesRetrievalService";
 import { IContact } from "../types/interfaces/IContact";
 import { IEmailSettings } from "../types/interfaces/IEmailService";
+import { GmailService } from "./GmailService";
+import { RocketMailApp } from "../../RocketMailApp";
 
 export class LLMTaskHandler {
     private llmService: LLMService;
@@ -30,7 +30,7 @@ export class LLMTaskHandler {
         this.messageService = new MessageService(logger);
     }
 
-    public async processTask(task: string, sender: any): Promise<ILLMTaskResult> {
+    public async processTask(task: string, sender: any, room?: IRoom): Promise<ILLMTaskResult> {
         try {
             // Get user's contact list for better context
             const contacts = await this.contactService.getContacts(sender.id, this.read);
@@ -52,8 +52,11 @@ export class LLMTaskHandler {
                 availableFunctions: functionsContext
             });
 
+            // Store the room in the sender object for later use
+            const enhancedSender = { ...sender, room };
+
             // Execute the appropriate action based on LLM analysis
-            return await this.executeAction(llmAction, sender);
+            return await this.executeAction(llmAction, enhancedSender, room);
         } catch (error) {
             this.logger.error('Error processing LLM task:', error);
             return {
@@ -86,8 +89,12 @@ export class LLMTaskHandler {
         3. view_email(emailId) - View a specific email by ID
         4. send_email(to, subject, body, cc) - Send a new email
         5. get_report(days) - Generate an email activity report for past N days
-        6. summarize_thread(timeframe, participants) - Summarize conversation threads
-        7. get_messages(room, timeframe, participants) - Retrieve messages from a chat
+        6. summarize_and_send(recipient, days, participants, subject, format) - Summarize chat messages and send them via email
+           - recipient: Email address to send the summary to (REQUIRED)
+           - days: Number of days to include in the summary (default: 2)
+           - participants: List of usernames to filter messages by (optional)
+           - subject: Custom subject for the email (optional)
+           - format: Format for the summary - 'bullet', 'paragraph', 'detailed', or 'brief' (optional)
         `;
     }
 
@@ -128,7 +135,7 @@ export class LLMTaskHandler {
         }
     }
 
-    private async executeAction(action: ILLMEmailAction, sender: any): Promise<ILLMTaskResult> {
+    private async executeAction(action: ILLMEmailAction, sender: any, room?: IRoom): Promise<ILLMTaskResult> {
         this.logger.debug(`LLMTaskHandler.executeAction -> Executing action: ${action.action}`);
 
         try {
@@ -165,7 +172,7 @@ export class LLMTaskHandler {
                     const result = await sendEmail({
                         params: action.parameters,
                         sender,
-                        room: sender.room,
+                        room: room || sender.room,
                         read: this.read,
                         modify: this.modify,
                         http: this.http,
@@ -174,8 +181,33 @@ export class LLMTaskHandler {
                     });
                     return result;
 
+                case LLMEmailActionType.SUMMARIZE_AND_SEND:
+                    // Use the dedicated summarizeAndSendEmail function
+                    if (!this.app) {
+                        return {
+                            success: false,
+                            message: "App instance is not available. Unable to summarize and send email."
+                        };
+                    }
+
+                    // Log the room object to help with debugging
+                    this.logger.debug(`Room object in SUMMARIZE_AND_SEND: ${JSON.stringify(room || sender.room)}`);
+
+                    const { summarizeAndSendEmail } = await import('../functions/SummariseAndSendEmail');
+                    const summarizeResult = await summarizeAndSendEmail({
+                        params: action.parameters,
+                        sender,
+                        room: room || sender.room,
+                        read: this.read,
+                        modify: this.modify,
+                        http: this.http,
+                        persistence: this.persistence,
+                        app: this.app
+                    });
+                    return summarizeResult;
+
                 case LLMEmailActionType.SUMMARIZE:
-                    return await this.handleSummarize(action.parameters, sender);
+                    return await this.handleSummarize(action.parameters, sender, room);
 
                 case LLMEmailActionType.UNKNOWN:
                 default:
@@ -196,104 +228,72 @@ export class LLMTaskHandler {
     /**
      * Handle the summarize action
      */
-    private async handleSummarize(params: any, sender: any): Promise<ILLMTaskResult> {
+    private async handleSummarize(params: any, sender: any, room?: IRoom): Promise<ILLMTaskResult> {
         try {
-            const type = params.type || 'email_report';
+            if (!room && !sender.room) {
+                return {
+                    success: false,
+                    message: "The room information is missing. Unable to summarize messages."
+                };
+            }
 
-            // Handle email report generation
-            if (type === 'email_report') {
-                const days = params.days || 7;
+            const currentRoom = room || sender.room;
+            this.logger.debug(`Room object in handleSummarize: ${JSON.stringify(currentRoom)}`);
 
-                // Use the ReportCommand directly
-                if (!this.app) {
-                    return {
-                        success: false,
-                        message: "App instance is not available. Unable to generate report."
-                    };
-                }
+            // Get messages based on the parameters
+            const messages = await this.messageService.getMessages(
+                currentRoom,
+                this.read,
+                sender,
+                params
+            );
 
-                const reportCommand = new ReportCommand(this.app);
-                await reportCommand.execute(
-                    [days.toString()],
-                    sender,
-                    sender.room,
-                    this.read,
-                    this.modify,
+            if (messages.length === 0) {
+                return {
+                    success: false,
+                    message: "No messages found for summarization."
+                };
+            }
+
+            // Format messages for summarization
+            const formattedMessages = this.messageService.formatMessagesForSummary(messages);
+
+            // Generate summary
+            const summary = await this.llmService.generateSummary(
+                formattedMessages,
+                currentRoom.displayName || currentRoom.slugifiedName || 'Chat'
+            );
+
+            // If recipient is specified, send as email
+            if (params.recipient_email) {
+                const emailSettings = await getEmailSettings(this.read.getEnvironmentReader().getSettings());
+                const emailService = await EmailServiceFactory.createEmailService(
+                    emailSettings,
+                    sender.id,
+                    this.logger,
                     this.http,
+                    this.read,
                     this.persistence
                 );
 
+                // Send the summary as an email
+                await emailService.sendEmail({
+                    from: emailSettings.email,
+                    to: params.recipient_email,
+                    subject: `Summary of ${currentRoom.displayName || currentRoom.slugifiedName || 'Conversation'}`,
+                    text: summary
+                });
+
                 return {
                     success: true,
-                    message: `I've generated a report of your email activity for the past ${days} days.`
+                    message: `📧 Successfully sent summary to ${params.recipient_email}:\n\n${summary.substring(0, 200)}...`
                 };
             }
 
-            // Handle thread summarization
-            if (type.includes('thread')) {
-                // Get the room and timeframe
-                const timeframe = params.timeframe || { type: 'today' };
-
-                // Get messages based on the parameters
-                const messages = await this.messageService.getMessages(
-                    sender.room,
-                    this.read,
-                    sender,
-                    params
-                );
-
-                if (messages.length === 0) {
-                    return {
-                        success: false,
-                        message: "No messages found for summarization."
-                    };
-                }
-
-                // Format messages for summarization
-                const formattedMessages = this.messageService.formatMessagesForSummary(messages);
-
-                // Generate summary
-                const summary = await this.llmService.generateSummary(
-                    formattedMessages,
-                    sender.room.displayName || sender.room.slugifiedName || 'Chat'
-                );
-
-                // If recipient is specified, send as email
-                if (params.recipient_email) {
-                    const emailSettings = await getEmailSettings(this.read.getEnvironmentReader().getSettings());
-                    const emailService = await EmailServiceFactory.createEmailService(
-                        emailSettings,
-                        sender.id,
-                        this.logger,
-                        this.http,
-                        this.read,
-                        this.persistence
-                    );
-
-                    // Send the summary as an email
-                    await emailService.sendEmail({
-                        from: emailSettings.email,
-                        to: params.recipient_email,
-                        subject: `Summary of ${sender.room.displayName || sender.room.slugifiedName || 'Conversation'}`,
-                        text: summary
-                    });
-
-                    return {
-                        success: true,
-                        message: `📧 Successfully sent summary to ${params.recipient_email}:\n\n${summary.substring(0, 200)}...`
-                    };
-                }
-
-                // Otherwise just return the summary
-                return {
-                    success: true,
-                    message: `📝 **Summary**\n\n${summary}`
-                };
-            }
-
+            // Otherwise just return the summary
             return {
-                success: false,
-                message: "I couldn't understand the type of summary you wanted. Please try again."
+                success: true,
+                message: `📝 **Summary**\n\n${summary}`
             };
         } catch (error) {
             this.logger.error('Error handling summarize action:', error);

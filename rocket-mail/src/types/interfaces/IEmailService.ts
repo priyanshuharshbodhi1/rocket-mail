@@ -31,6 +31,7 @@ export interface IEmailSummary {
 export interface IEmailDetails extends IEmailSummary {
     to: string;
     content: string;
+    body: string;
 }
 
 /**
