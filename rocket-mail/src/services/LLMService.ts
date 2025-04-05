@@ -47,16 +47,30 @@ export class LLMService {
 #Follow these guidelines:
     - Your primary goal is to convert user input into a structured JSON format for email actions.
     - Always respond with a JSON object that contains the keys "action", "parameters", "rationale", and optionally "user_guidance".
-    - The "action" key should be one of the following values: "send-email", "search-emails", "count-emails", "summarize-and-send" or "unknown".
+    - The "action" key should be one of the following values: "send-email", "search-emails", "count-emails", "summarize-and-send", "post-email-content" or "unknown".
     - Don't make mistakes like giving action as "count_emails" instead of "count-emails".
     - The "parameters" key should be a JSON object containing the parameters for the action.
+    - CRITICAL: When processing mentions of organizations, companies, or keywords (e.g., "Kotak811", "Amazon", "Facebook"):
+      * Do NOT include these as "from" parameters unless they are explicitly email addresses
+      * Instead, use these as search terms in the "query" parameter
+      * Example: "show emails from Kotak811" should set query="Kotak811", not from="Kotak811"
     - Always provide appropriate default values for missing parameters:
       * For count-emails and search-emails, if no time frame is specified, use "last month" for startDate
       * For count-emails, if sender/recipient is ambiguous, try to infer from context (e.g., "emails to me" = user's own email)
+    - IMPORTANT: When the user asks to "post", "share", "show" email content or attachments, use the "post-email-content" action.
+      * Example: "post the latest email from John" should use post-email-content action
+      * Example: "show me emails with PDF attachments from last week" should use post-email-content action
+      * Example: "share the contract emails in the channel" should use post-email-content action
     - For date parameters, use the exact formats:
       * For absolute dates: "YYYY-MM-DD" format
       * For relative dates, only use these exact phrases: "today", "yesterday", "last week", "past week", "last month", "X days ago" (where X is a number)
       * Don't use phrases like "in the last X days" or "last X days" - use "X days ago" instead
+    - For post-email-content action, use the most specific contentType based on the user request:
+      * "full" - When user wants the complete email content
+      * "attachment" - When user specifically wants to see attachment information
+      * "body" - When user specifically wants the email body
+      * "subject" - When user only needs email subjects
+      * "preview" - For a brief overview of the email
     - The "rationale" key should contain a brief explanation of why this action was chosen.
     - If the query is incomplete or could be improved, include a "user_guidance" key with a helpful suggestion
       * Example: "user_guidance": "Try rephrasing your request with a specific time period for more accurate results."
@@ -182,6 +196,43 @@ export class LLMService {
 
             this.logger.debug(`LLMService.processEmailTask -> LLM Response: ${JSON.stringify(llmResponse)}`);
 
+            // Check if the action is valid
+            const validActions = Object.values(LLMEmailActionType);
+            if (!llmResponse.action || !validActions.includes(llmResponse.action)) {
+                this.logger.error(`Invalid action type received: ${llmResponse.action}`);
+                this.logger.debug(`Valid action types are: ${validActions.join(", ")}`);
+                this.logger.debug(`User query was: ${taskRequest.task}`);
+                
+                // Try to recover by checking for keywords in the original task
+                if (this.containsPostKeywords(taskRequest.task)) {
+                    this.logger.debug(`Recovering by treating query as post-email-content`);
+                    llmResponse.action = LLMEmailActionType.POST_EMAIL_CONTENT;
+                    
+                    if (!llmResponse.parameters) {
+                        llmResponse.parameters = {};
+                    }
+                    
+                    // Set default parameters
+                    if (!llmResponse.parameters.contentType) {
+                        llmResponse.parameters.contentType = 'full';
+                    }
+                    
+                    // Extract potential from/sender information
+                    const fromMatch = taskRequest.task.match(/from\s+([A-Za-z0-9._-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}|[A-Za-z0-9\s]+)/i);
+                    if (fromMatch && fromMatch[1]) {
+                        llmResponse.parameters.from = fromMatch[1].trim();
+                    }
+                    
+                    // Look for "latest" keyword
+                    if (taskRequest.task.toLowerCase().includes('latest')) {
+                        llmResponse.parameters.limit = 1;
+                    }
+                }
+            }
+
+            // Fix common parameter issues
+            llmResponse.parameters = this.fixCommonParameterIssues(llmResponse.action, llmResponse.parameters, taskRequest.task);
+
             // Parse the LLM's response into our action format
             const actionType = this.mapActionType(llmResponse.action);
             const emailAction: ILLMEmailAction = {
@@ -298,6 +349,96 @@ export class LLMService {
     }
 
     /**
+     * Check if a task contains keywords related to posting email content
+     */
+    private containsPostKeywords(task: string): boolean {
+        const postKeywords = ['post', 'show', 'display', 'share', 'see', 'view', 'get'];
+        const emailKeywords = ['email', 'mail', 'message', 'attachment', 'content'];
+        
+        const lowercaseTask = task.toLowerCase();
+        
+        // Check for combinations of post and email keywords
+        for (const postWord of postKeywords) {
+            if (lowercaseTask.includes(postWord)) {
+                for (const emailWord of emailKeywords) {
+                    if (lowercaseTask.includes(emailWord)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * Fix common parameter mistakes in LLM response
+     */
+    private fixCommonParameterIssues(action: string, parameters: any, originalQuery: string): any {
+        if (!parameters) {
+            return {};
+        }
+        
+        const fixedParams = { ...parameters };
+        
+        // Handle post-email-content and search-emails with potential company/organization names
+        if (action === LLMEmailActionType.POST_EMAIL_CONTENT || 
+            action === LLMEmailActionType.SEARCH_EMAILS) {
+            
+            // Check if 'from' parameter contains a non-email value (like company name)
+            if (fixedParams.from && !this.isValidEmailAddress(fixedParams.from)) {
+                // Move 'from' value to query if it's not an email
+                if (!fixedParams.query) {
+                    fixedParams.query = fixedParams.from;
+                } else {
+                    fixedParams.query += ` ${fixedParams.from}`;
+                }
+                
+                // Remove the invalid from parameter
+                delete fixedParams.from;
+            }
+            
+            // Extract company/organization names from the original query if no query parameter
+            if (!fixedParams.query) {
+                const companyMatch = this.extractCompanyNames(originalQuery);
+                if (companyMatch) {
+                    fixedParams.query = companyMatch;
+                }
+            }
+            
+            // Ensure post-email-content has a contentType
+            if (action === LLMEmailActionType.POST_EMAIL_CONTENT && !fixedParams.contentType) {
+                fixedParams.contentType = 'full';
+            }
+        }
+        
+        return fixedParams;
+    }
+    
+    /**
+     * Check if a string is a valid email address
+     */
+    private isValidEmailAddress(email: string): boolean {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    }
+    
+    /**
+     * Extract potential company or organization names from a query
+     */
+    private extractCompanyNames(query: string): string | null {
+        // Extract terms that might be company names (typically after "from", "by", etc.)
+        const companyRegex = /\b(?:from|by|at|about|regarding)\s+([A-Z][A-Za-z0-9]*(?:\s*[A-Z][A-Za-z0-9]*)*)\b/i;
+        const match = query.match(companyRegex);
+        
+        if (match && match[1]) {
+            return match[1].trim();
+        }
+        
+        return null;
+    }
+
+    /**
      * Map string action to LLMEmailActionType enum
      */
     private mapActionType(action: string): LLMEmailActionType {
@@ -312,6 +453,8 @@ export class LLMService {
                 return LLMEmailActionType.SEND_EMAIL;
             case "summarize":
                 return LLMEmailActionType.SUMMARIZE;
+            case "post-email-content":
+                return LLMEmailActionType.POST_EMAIL_CONTENT;
             default:
                 return LLMEmailActionType.UNKNOWN;
         }
