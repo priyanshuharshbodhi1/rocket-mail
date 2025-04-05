@@ -19,7 +19,6 @@ export enum LLMEmailActionType {
     SUMMARIZE = 'summarize',
     SUMMARIZE_AND_SEND = 'summarize-and-send',
     GET_REPORT = 'get-report',
-    POST_EMAIL_CONTENT = 'post-email-content',
     UNKNOWN = 'unknown'
 }
 
@@ -50,12 +49,6 @@ export interface IEmailSearchParams {
     before?: string;
     hasAttachment?: boolean;
     limit?: number;
-}
-
-export interface IPostEmailContentParams extends IEmailSearchParams {
-    contentType: 'full' | 'attachment' | 'body' | 'subject' | 'preview';
-    fileType?: string;
-    fileName?: string;
 }
 
 export interface IEmailCountParams {

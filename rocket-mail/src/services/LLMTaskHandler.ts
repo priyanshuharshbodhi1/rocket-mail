@@ -110,7 +110,7 @@ export class LLMTaskHandler {
             to: [string],   // Required. Array of email addresses to send to
             cc: [string],   // Optional. Array of email addresses to CC
             bcc: [string],  // Optional. Array of email addresses to BCC
-            subject: string, // Required. Subject line of the email
+            subject: string, // Required. Subject of the email
             body: string    // Required. Body content of the email
         }) - Sends an email to the specified recipients.
 
@@ -118,9 +118,9 @@ export class LLMTaskHandler {
             query: string,  // Optional. Search term to find in emails
             from: string,   // Optional. Filter emails from a specific sender
             to: string,     // Optional. Filter emails sent to a specific recipient
-            subject: string, // Optional. Filter emails by subject
-            after: string,  // Optional. Start date (YYYY-MM-DD)
-            before: string, // Optional. End date (YYYY-MM-DD)
+            subject: string, // Optional. Filter emails with specific subject text
+            after: string,  // Optional. Filter emails after this date (format: YYYY-MM-DD)
+            before: string, // Optional. Filter emails before this date (format: YYYY-MM-DD)
             hasAttachment: boolean, // Optional. Filter emails with attachments
             limit: number   // Optional. Maximum number of results to return
         }) - Searches for emails matching the criteria.
@@ -135,34 +135,20 @@ export class LLMTaskHandler {
             endDate: string,       // Optional. End date (YYYY-MM-DD)
             folder: string,        // Optional. Folder/label name
             hasAttachment: boolean // Optional. Whether email has attachments
-        }) - Counts emails matching the criteria.
+        }) - Counts emails matching the specified criteria.
 
         4. summarize-and-send({
             days: number,          // Optional. Number of past days to include (default: 2)
             participants: [string], // Optional. Filter messages by specific participants
             recipient: string,     // Required. Email address to send the summary to
             subject: string,       // Optional. Subject for the email
-            format: string,        // Optional. Format of the summary (bullet, paragraph, detailed, brief)
+            format: string,        // Optional. Format of the summary (brief, detailed, bullet, paragraph)
             additionalContent: string // Optional. Additional text to include with the summary
         }) - Summarizes chat messages and sends the summary via email.
 
         5. get-report({
             days: number           // Optional. Number of past days to include (default: 7)
         }) - Generates an email activity report for the specified number of days.
-        
-        6. post-email-content({
-            query: string,         // Optional. General search term for emails including company names or keywords
-            from: string,          // Optional. Filter emails from a specific email address
-            to: string,            // Optional. Filter emails to a specific recipient
-            subject: string,       // Optional. Filter emails by subject
-            after: string,         // Optional. Start date (YYYY-MM-DD)
-            before: string,        // Optional. End date (YYYY-MM-DD)
-            hasAttachment: boolean, // Optional. Filter emails with attachments
-            contentType: string,   // Required. Type of content to post: "full", "attachment", "body", "subject", or "preview"
-            fileType: string,      // Optional. Filter attachments by file type (e.g. "pdf", "doc")
-            fileName: string,      // Optional. Filter attachments by name
-            limit: number          // Optional. Maximum results to return (default: 1)
-        }) - Searches for emails and posts the content to the current channel.
         `;
     }
 
@@ -297,28 +283,6 @@ export class LLMTaskHandler {
                         success: true,
                         message: `I've generated a report of your email activity for the past ${days} days.`
                     };
-
-                case LLMEmailActionType.POST_EMAIL_CONTENT:
-                    // Use the dedicated postEmailContent function
-                    if (!this.app) {
-                        return {
-                            success: false,
-                            message: "App instance is not available. Unable to post email content."
-                        };
-                    }
-
-                    const { postEmailContent } = await import('../functions/PostEmailContent');
-                    const postResult = await postEmailContent({
-                        params: action.parameters,
-                        sender,
-                        room: room || sender.room,
-                        read: this.read,
-                        modify: this.modify,
-                        http: this.http,
-                        persistence: this.persistence,
-                        app: this.app
-                    });
-                    return postResult;
 
                 case LLMEmailActionType.UNKNOWN:
                 default:
