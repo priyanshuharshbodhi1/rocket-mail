@@ -1,7 +1,7 @@
 import { IHttp, ILogger, IModify, IPersistence, IRead } from "@rocket.chat/apps-engine/definition/accessors";
 import { RocketMailApp } from "../../RocketMailApp";
-import { LLMService } from "./LLMService";
-import { ContactService } from "./ContactService";
+import { LLMService } from "../services/LLMService";
+import { ContactService } from "../services/ContactService";
 import {
     ILLMTaskRequest,
     ILLMTaskResult,
@@ -12,10 +12,10 @@ import {
 import { getEmailSettings } from "../config/SettingsManager";
 import { EmailServiceFactory } from "../email-providers/EmailServiceFactory";
 import { IRoom } from "@rocket.chat/apps-engine/definition/rooms";
-import { MessageService } from "./MessagesRetrievalService";
+import { MessageService } from "../services/MessagesRetrievalService";
 import { IContact } from "../types/interfaces/IContact";
 import { IEmailSettings } from "../types/interfaces/IEmailService";
-import { GmailService } from "./GmailService";
+import { GmailService } from "../services/GmailService";
 
 export class LLMTaskHandler {
     private llmService: LLMService;
@@ -264,7 +264,7 @@ export class LLMTaskHandler {
                         };
                     }
 
-                    const { ReportCommand } = await import('../handlers/ReportHandler');
+                    const { ReportCommand } = await import('./ReportHandler');
                     const reportCommand = new ReportCommand(this.app);
                     const days = action.parameters.days || 7;
 
