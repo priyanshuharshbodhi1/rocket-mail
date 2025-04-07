@@ -3,7 +3,7 @@ import { IUser } from '@rocket.chat/apps-engine/definition/users';
 import { RocketChatAssociationModel, RocketChatAssociationRecord } from '@rocket.chat/apps-engine/definition/metadata';
 import { IOAuthCredentials } from '../../types/interfaces/IOAuthCredentials';
 
-export class OAuthService {
+export class GoogleOAuthService {
     private clientId: string = '';
     private clientSecret: string = '';
     private redirectUri: string = '';

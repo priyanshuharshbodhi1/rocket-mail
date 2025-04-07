@@ -8,10 +8,10 @@ import {
     ISlashCommand,
     SlashCommandContext,
 } from '@rocket.chat/apps-engine/definition/slashcommands';
-import { RocketMailApp } from '../../RocketMailApp';
-import { OAuthService } from '../email-providers/OAuth/OAuthService';
-import { getEmailSettings } from '../config/SettingsManager';
-import { EmailProviders } from '../types/enums/EmailProviders';
+import { RocketMailApp } from '../../../RocketMailApp';
+import { GoogleOAuthService } from '../../email-providers/OAuth/GoogleOAuthService';
+import { getEmailSettings } from '../../config/SettingsManager';
+import { EmailProviders } from '../../types/enums/EmailProviders';
 
 export class LoginCommand implements ISlashCommand {
     public command = 'login';
@@ -50,7 +50,7 @@ export class LoginCommand implements ISlashCommand {
                 }
             };
 
-            const oauthService = new OAuthService(http, persistence, read, this.app.getLogger(), oauthSettings);
+            const oauthService = new GoogleOAuthService(http, persistence, read, this.app.getLogger(), oauthSettings);
             await oauthService.initialize();
 
             // Check if user is already authenticated
@@ -88,7 +88,7 @@ export class LoginCommand implements ISlashCommand {
      * Handle Gmail login - generate and send OAuth URL
      */
     private async handleGmailLogin(
-        oauthService: OAuthService,
+        oauthService: GoogleOAuthService,
         userId: string,
         messageBuilder: any,
         modify: IModify

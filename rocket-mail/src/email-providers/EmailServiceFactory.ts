@@ -1,7 +1,7 @@
 import { IHttp, ILogger, IPersistence, IRead } from '@rocket.chat/apps-engine/definition/accessors';
 import { IEmailSettings } from '../types/interfaces/IEmailService';
 import { GmailService } from '../services/GmailService';
-import { OAuthService } from './OAuth/OAuthService';
+import { GoogleOAuthService } from './OAuth/GoogleOAuthService';
 import { EmailProviders } from '../types/enums/EmailProviders';
 // import { SettingsIds } from '../enums/SettingsIds';
 
@@ -28,7 +28,7 @@ export class EmailServiceFactory {
                 }
             };
 
-            const oauthService = new OAuthService(http, persistence, read, logger, oauthSettings);
+            const oauthService = new GoogleOAuthService(http, persistence, read, logger, oauthSettings);
             await oauthService.initialize();
 
             // Check if the user is authenticated
