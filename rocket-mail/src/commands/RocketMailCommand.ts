@@ -9,19 +9,15 @@ import {
     SlashCommandContext,
 } from "@rocket.chat/apps-engine/definition/slashcommands";
 import { RocketMailApp } from "../../RocketMailApp";
-import { AddCommand } from "../handlers/AddHandler";
-import { DeleteCommand } from "../handlers/DeleteHandler";
-import { ListCommand } from "../handlers/ListHandler";
+import { AddCommand } from "../handlers/contacts-handlers/AddHandler";
+import { DeleteCommand } from "../handlers/contacts-handlers/DeleteHandler";
+import { ListCommand } from "../handlers/contacts-handlers/ListHandler";
 import { SendEmailCommand } from "../handlers/SendEmailHandler";
-import { LastEmailCommand } from "../handlers/LastEmailHandler";
 import { HelpCommand } from "../handlers/HelpHandler";
-import { SearchEmailCommand } from "../handlers/SearchEmailHandler";
-import { ViewEmailCommand } from "../handlers/ViewEmailHandler";
-import { CountEmailCommand } from "../handlers/CountEmailHandler";
 import { ContactService } from "../services/ContactService";
 import { LLMTaskHandler } from "../handlers/NaturalLanguageRequestHandler";
-import { LoginCommand } from "../handlers/LoginHandler";
-import { LogoutCommand } from "../handlers/LogoutHandler";
+import { LoginCommand } from "../handlers/auth-handlers/LoginHandler";
+import { LogoutCommand } from "../handlers/auth-handlers/LogoutHandler";
 import { ReportCommand } from "../handlers/ReportHandler";
 
 export class RocketMailCommand implements ISlashCommand {
@@ -57,11 +53,6 @@ export class RocketMailCommand implements ISlashCommand {
                     args, sender, room, read, modify, http, persistence
                 );
                 break;
-            case 'lastemail':
-                await new LastEmailCommand(this.app).execute(
-                    sender, room, read, modify, http, persistence
-                );
-                break;
             case 'add':
                 await new AddCommand(this.app, this.contactService).execute(
                     args, sender, room, modify, persistence, read
@@ -90,28 +81,12 @@ export class RocketMailCommand implements ISlashCommand {
                     context, read, modify, http, persistence
                 );
                 break;
-            case 'search':
-                await new SearchEmailCommand(this.app).execute(
-                    args, sender, room, read, modify, http, persistence
-                );
-                break;
-            case 'view':
-                await new ViewEmailCommand(this.app).execute(
-                    args, sender, room, read, modify, http, persistence
-                );
-                break;
-            case 'count':
-                await new CountEmailCommand(this.app).execute(
-                    args, sender, room, read, modify, http, persistence
-                );
-                break;
             case 'report':
                 await new ReportCommand(this.app).execute(
                     args, sender, room, read, modify, http, persistence
                 );
                 break;
             default:
-                // Handle as natural language request
                 await this.handleNaturalLanguageRequest(subcommand, args, sender, room, read, modify, http, persistence);
                 break;
         }
