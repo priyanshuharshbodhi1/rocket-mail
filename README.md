@@ -47,15 +47,10 @@ Simply type `/rocket-mail` followed by your request in plain English. The app un
 2. `/rocket-mail logout` - Disconnect your email account
 
 #### Email Operations
-1. `/rocket-mail sendemail <recipient> <subject> <message>` - Send an email
-2. `/rocket-mail lastemail` - Display your last received email
-3. `/rocket-mail search [subject:Subject] [from:Sender] [body:Text] [since:YYYY-MM-DD] [until:YYYY-MM-DD] [limit:Number]` - Search emails
-   - Example: `/rocket-mail search subject:"Meeting" from:john@example.com since:2025-03-01`
-4. `/rocket-mail view <email_id>` - View a specific email by ID
-   - Example: `/rocket-mail view 186abc43def`
-5. `/rocket-mail count [from:Sender] [since:YYYY-MM-DD] [until:YYYY-MM-DD]` - Count emails by date range
-   - Example: `/rocket-mail count since:2025-03-01 until:2025-03-28`
-6. `/rocket-mail report <no_of_days>` - Generate comprehensive email report for the last N days
+1. `/rocket-mail help` - Display the help message
+2. `/rocket-mail sendemail <recipient> <subject> <message>` - Send an email
+   - Example: `/rocket-mail sendemail boss@example.com "Meeting" "Hello, let's meet tomorrow"`
+3. `/rocket-mail report <no_of_days>` - Generate comprehensive email report for the last N days
    - Example: `/rocket-mail report 7`
 
 #### Contact Management
@@ -65,8 +60,6 @@ Simply type `/rocket-mail` followed by your request in plain English. The app un
    - Example: `/rocket-mail delete boss`
 3. `/rocket-mail list` - Show all your saved contacts
 
-#### Utilities
-1. `/rocket-mail help` - Display the help message
 
 ## Setup for Contributors
 
