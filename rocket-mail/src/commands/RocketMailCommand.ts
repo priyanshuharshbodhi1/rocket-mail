@@ -19,7 +19,7 @@ import { SearchEmailCommand } from "../handlers/SearchEmailHandler";
 import { ViewEmailCommand } from "../handlers/ViewEmailHandler";
 import { CountEmailCommand } from "../handlers/CountEmailHandler";
 import { ContactService } from "../services/ContactService";
-import { LLMTaskHandler } from "../services/LLMTaskHandler";
+import { LLMTaskHandler } from "../handlers/NaturalLanguageRequestHandler";
 import { LoginCommand } from "../handlers/LoginHandler";
 import { LogoutCommand } from "../handlers/LogoutHandler";
 import { ReportCommand } from "../handlers/ReportHandler";
