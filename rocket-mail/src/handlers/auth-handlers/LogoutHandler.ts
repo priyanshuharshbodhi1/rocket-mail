@@ -5,8 +5,8 @@ import {
     IRead,
 } from '@rocket.chat/apps-engine/definition/accessors';
 import { SlashCommandContext } from '@rocket.chat/apps-engine/definition/slashcommands';
-import { RocketMailApp } from '../../RocketMailApp';
-import { OAuthService } from '../email-providers/OAuth/OAuthService';
+import { RocketMailApp } from '../../../RocketMailApp';
+import { GoogleOAuthService } from '../../email-providers/OAuth/GoogleOAuthService';
 
 export class LogoutCommand {
     constructor(private readonly app: RocketMailApp) {}
@@ -29,7 +29,7 @@ export class LogoutCommand {
             }
         };
 
-        const oauthService = new OAuthService(http, persistence, read, this.app.getLogger(), settings);
+        const oauthService = new GoogleOAuthService(http, persistence, read, this.app.getLogger(), settings);
         await oauthService.initialize();
 
         // Create message builder

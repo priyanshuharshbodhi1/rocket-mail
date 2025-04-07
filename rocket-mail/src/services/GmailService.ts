@@ -1,12 +1,12 @@
 import { IHttp, ILogger } from '@rocket.chat/apps-engine/definition/accessors';
-import { OAuthService } from '../email-providers/OAuth/OAuthService';
+import { GoogleOAuthService } from '../email-providers/OAuth/GoogleOAuthService';
 import { IEmailContent, IEmailDetails, IEmailSummary } from '../types/interfaces/IEmailService';
 import { IEmailSearchParams, IEmailCountParams } from '../models/LLMTask';
 
 export class GmailService {
     constructor(
         private readonly userId: string,
-        private readonly oauthService: OAuthService,
+        private readonly oauthService: GoogleOAuthService,
         private readonly http: IHttp,
         private readonly logger: ILogger
     ) {}

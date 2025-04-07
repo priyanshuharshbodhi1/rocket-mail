@@ -1,6 +1,6 @@
 import { IModify, IRead } from "@rocket.chat/apps-engine/definition/accessors";
-import { ContactService } from "../services/ContactService";
-import { RocketMailApp } from "../../RocketMailApp";
+import { ContactService } from "../../services/ContactService";
+import { RocketMailApp } from "../../../RocketMailApp";
 
 export class ListCommand {
     constructor(

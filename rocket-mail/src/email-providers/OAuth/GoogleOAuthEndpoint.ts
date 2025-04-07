@@ -11,9 +11,9 @@ import {
     IApiResponse,
 } from '@rocket.chat/apps-engine/definition/api';
 import { RocketMailApp } from '../../../RocketMailApp';
-import { OAuthService } from './OAuthService';
+import { GoogleOAuthService } from './GoogleOAuthService';
 
-export class OAuthEndpoint implements IApiEndpoint {
+export class GoogleOAuthEndpoint implements IApiEndpoint {
     public path = 'oauth-callback';
 
     constructor(private readonly app: RocketMailApp) {}
@@ -46,7 +46,7 @@ export class OAuthEndpoint implements IApiEndpoint {
                 }
             };
 
-            const oauthService = new OAuthService(http, persistence, read, logger, settings);
+            const oauthService = new GoogleOAuthService(http, persistence, read, logger, settings);
             await oauthService.initialize();
 
             // Get code and state from query
