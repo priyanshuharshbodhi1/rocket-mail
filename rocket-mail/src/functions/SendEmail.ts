@@ -32,7 +32,10 @@ export async function sendEmail({
     persistence: IPersistence;
     app: RocketMailApp;
 }): Promise<{ success: boolean; message: string }> {
-    if (!params.to || !params.to.length || !params.subject || !params.body) {
+    // Handle both content and body parameter names
+    const emailBody = params.content || params.body;
+    
+    if (!params.to || !params.to.length || !params.subject || !emailBody) {
         return {
             success: false,
             message: "Missing required parameters for sending email. Please provide recipient, subject, and message content."
@@ -63,7 +66,7 @@ export async function sendEmail({
             from: settings.email,
             to: recipientStr,
             subject: params.subject,
-            text: params.body,
+            text: emailBody,
             html: params.html
         };
 

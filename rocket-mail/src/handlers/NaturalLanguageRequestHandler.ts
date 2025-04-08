@@ -127,7 +127,6 @@ export class LLMTaskHandler {
 
         3. count-emails({
             sender: string,        // Optional. Email address of the sender
-            recipient: string,     // Optional. Email address of the recipient
             subject: string,       // Optional. Text to search for in subject
             body: string,          // Optional. Text to search for in body
             keywords: [string],    // Optional. Keywords to search for in emails
