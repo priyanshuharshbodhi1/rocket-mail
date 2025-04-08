@@ -47,16 +47,18 @@ export async function summarizeAndSendEmail({
     persistence: IPersistence;
     app: RocketMailApp;
 }): Promise<{ success: boolean; message: string; data?: any }> {
+    app.getLogger().debug(`SummarizeAndSendEmail params: ${JSON.stringify(params)}`);
+    
     if (!params.recipient) {
         return {
             success: false,
-            message: "No recipient specified for the summary email"
+            message: "No recipient specified for the summary email. Please include a recipient email address."
         };
     }
 
     // Check if we have valid parameters for either email or chat summarization
     const isEmailSummarize = params.emailIds && params.emailIds.length > 0;
-    const isChatSummarize = !!room; // We have a room to summarize
+    const isChatSummarize = !!room || !!params.roomId; // We have a room to summarize
 
     if (!isEmailSummarize && !isChatSummarize) {
         return {
@@ -186,34 +188,49 @@ ${email.body || "No content"}
         } 
         // Handle Chat Messages Summarization
         else if (isChatSummarize) {
-            // Create a message service to retrieve chat messages
+            // If roomId is provided, try to fetch the room
+            let currentRoom = room;
+            if (!currentRoom && params.roomId) {
+                try {
+                    currentRoom = await read.getRoomReader().getById(params.roomId);
+                    if (!currentRoom) {
+                        return {
+                            success: false,
+                            message: `Could not find room with ID ${params.roomId}`
+                        };
+                    }
+                } catch (error) {
+                    app.getLogger().error(`Error fetching room ${params.roomId}:`, error);
+                    return {
+                        success: false,
+                        message: `Error finding room: ${error.message}`
+                    };
+                }
+            }
+            
+            if (!currentRoom) {
+                return {
+                    success: false,
+                    message: "No room specified for summarization. Please use this command in a channel or provide a roomId."
+                };
+            }
+            
+            // Create message service for retrieving messages
             const messageService = new MessageService(app.getLogger());
             
-            // Create summarize params
+            // Default to 2 days if not specified
+            const days = params.days || 2;
+            
+            // Create summarize params from the provided parameters
             const summarizeParams: ISummarizeParams = {
-                timeframe: {
-                    type: 'custom',
-                }
+                days,
+                participants: params.participants,
+                format: params.format
             };
             
-            // Set days parameter (default to 2 days if not specified)
-            const days = params.days || 2;
-            if (days) {
-                const startDate = new Date();
-                startDate.setDate(startDate.getDate() - days);
-                if (summarizeParams.timeframe) {
-                    summarizeParams.timeframe.startDate = startDate.toISOString();
-                }
-            }
-            
-            // Set participants if provided
-            if (params.participants && params.participants.length > 0) {
-                summarizeParams.participants = params.participants;
-            }
-            
-            // Get messages from the current room
+            // Retrieve messages from the room
             const messages = await messageService.getMessages(
-                room as IRoom,
+                currentRoom,
                 read,
                 sender,
                 summarizeParams
@@ -221,8 +238,8 @@ ${email.body || "No content"}
             
             if (!messages || messages.length === 0) {
                 return {
-                    success: false,
-                    message: "No messages found for the specified criteria"
+                    success: true,
+                    message: `No messages found in the last ${days} day(s) to summarize.`
                 };
             }
             
@@ -231,7 +248,7 @@ ${email.body || "No content"}
             contentType = "chat messages";
             
             // Generate a summary of the messages
-            const channelName = room.displayName || room.name || "Chat";
+            const channelName = currentRoom.displayName || currentRoom.name || "Chat";
             const summaryPrompt = `
 Please summarize the following ${messages.length} chat messages from the last ${days} day(s).
 ${params.format ? `Format the summary in ${params.format} style.` : ''}
@@ -241,33 +258,33 @@ MESSAGES:
 ${contentToSummarize}
 `;
             
+            app.getLogger().debug(`Generating summary for ${messages.length} messages`);
             summary = await llmService.generateSummary(summaryPrompt, channelName);
             
             if (!summary) {
                 return {
                     success: false,
-                    message: "Failed to generate a summary of the chat messages"
+                    message: "Failed to generate a summary of the chat messages. Please try again."
                 };
             }
             
             // Prepare the email subject and content
-            const subject = params.subject || `Summary of chat conversation from last ${days} day(s)`;
+            const subject = params.subject || `Summary of ${channelName} conversation from last ${days} day(s)`;
             
-            let emailBody = `# Chat Conversation Summary\n\n`;
+            let emailBody = `# Chat Conversation Summary: ${channelName}\n\n`;
             emailBody += `${summary}\n\n`;
             
             if (params.additionalContent) {
                 emailBody += `## Additional Context\n\n${params.additionalContent}\n\n`;
             }
             
-            emailBody += `## Original Messages\n\n`;
+            emailBody += `## Time Period\n\n`;
             emailBody += `*These messages were collected from ${new Date(messages[0].createdAt).toLocaleString()} to ${new Date(messages[messages.length-1].createdAt).toLocaleString()}*\n\n`;
-            emailBody += "```\n";
-            emailBody += contentToSummarize;
-            emailBody += "\n```\n";
             
             // Convert markdown to HTML for the email
             const htmlBody = convertMarkdownToHtml(emailBody);
+            
+            app.getLogger().debug(`Sending summary email to ${params.recipient}`);
             
             // Send the summary email
             const sendResult = await sendEmail({
@@ -278,7 +295,7 @@ ${contentToSummarize}
                     html: htmlBody
                 },
                 sender,
-                room,
+                room: currentRoom,
                 read,
                 modify,
                 http,
@@ -292,7 +309,7 @@ ${contentToSummarize}
             
             return {
                 success: true,
-                message: `Summary of chat conversation from last ${days} day(s) sent to ${params.recipient}`,
+                message: `Summary of ${channelName} conversation from last ${days} day(s) sent to ${params.recipient}`,
                 data: {
                     summary,
                     messageCount: messages.length,

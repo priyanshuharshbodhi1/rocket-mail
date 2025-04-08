@@ -45,13 +45,13 @@ export const getIntentDetectionPrompt = (taskRequest: any): string => {
     }) - Counts emails matching the specified criteria.
 
     4. summarize-and-send({
-        days: number,          // Optional. Number of past days to include (default: 2)
+        days: number,          // Optional. Number of past days of chat history to include (default: 2)
         participants: string[], // Optional. Filter messages by specific participants
-        recipient: string,     // Required. Email address to send the summary to
+        recipient: string,     // REQUIRED. Email address to send the summary to
         subject: string,       // Optional. Subject for the email
         format: string,        // Optional. Format of the summary (brief, detailed, bullet, paragraph)
         additionalContent: string // Optional. Additional text to include with the summary
-    }) - Summarizes chat messages and sends the summary via email.
+    }) - Summarizes chat messages from the current channel and sends the summary via email.
 
     5. get-report({
         days: number           // Optional. Number of past days to include (default: 7)

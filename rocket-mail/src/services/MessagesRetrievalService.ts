@@ -198,6 +198,14 @@ export class MessageService {
         const result: { startDate?: Date, limit?: number } = {};
         const now = new Date();
 
+        // Handle direct days parameter if provided
+        if (params.days && params.days > 0) {
+            const daysAgo = new Date(now);
+            daysAgo.setDate(now.getDate() - params.days);
+            result.startDate = daysAgo;
+            return result;
+        }
+
         if (!params.timeframe) {
             // Default to today
             result.startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
@@ -209,10 +217,23 @@ export class MessageService {
                 result.startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
                 break;
 
+            case 'yesterday':
+                const yesterday = new Date(now);
+                yesterday.setDate(now.getDate() - 1);
+                yesterday.setHours(0, 0, 0, 0);
+                result.startDate = yesterday;
+                break;
+
             case 'week':
                 const weekAgo = new Date(now);
                 weekAgo.setDate(now.getDate() - 7);
                 result.startDate = weekAgo;
+                break;
+
+            case 'month':
+                const monthAgo = new Date(now);
+                monthAgo.setMonth(now.getMonth() - 1);
+                result.startDate = monthAgo;
                 break;
 
             case 'custom':
