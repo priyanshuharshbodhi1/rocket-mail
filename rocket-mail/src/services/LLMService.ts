@@ -60,10 +60,12 @@ export class LLMService {
                 data: {
                     input: prompt,
                     temperature: 0.3,
-                    max_tokens: 1000,
+                    max_tokens: 10000,
                 },
                 timeout: this.requestTimeout,
             });
+
+            this.logger.debug(`1. response: ${JSON.stringify(response)}`);
 
             const totalTime = Date.now() - startTime;
             this.logger.debug(`LLMService: API request completed in ${totalTime}ms`);
@@ -235,7 +237,7 @@ export class LLMService {
                 data: {
                     input: prompt,
                     temperature: 0.3,
-                    max_tokens: 10000,
+                    max_tokens: 1000,
                 },
                 timeout: this.requestTimeout,
             });
