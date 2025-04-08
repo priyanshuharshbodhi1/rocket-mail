@@ -14,6 +14,7 @@ export class LLMService {
     private apiUrl =
         "https://api.deepinfra.com/v1/inference/meta-llama/Llama-3.3-70B-Instruct-Turbo";
     private apiKey: string;
+    private readonly requestTimeout = 30000; // 30 seconds timeout
 
     constructor(
         private readonly http: IHttp,
@@ -47,6 +48,10 @@ export class LLMService {
         const prompt = getIntentDetectionPrompt(taskRequest);
 
         try {
+            // Start a timer to track total request time
+            const startTime = Date.now();
+            this.logger.debug(`LLMService: Starting LLM API request at ${new Date().toISOString()}`);
+
             const response = await this.http.post(this.apiUrl, {
                 headers: {
                     "Content-Type": "application/json",
@@ -54,22 +59,16 @@ export class LLMService {
                 },
                 data: {
                     input: prompt,
-                    temperature: 0.1,
+                    temperature: 0.3,
                     max_tokens: 1000,
                 },
+                timeout: this.requestTimeout,
             });
 
-            this.logger.debug("LLM intent Response:", response);
-            console.log("LLM intent Response:", response);
+            const totalTime = Date.now() - startTime;
+            this.logger.debug(`LLMService: API request completed in ${totalTime}ms`);
 
             if (response.statusCode !== 200) {
-                const errorContent =
-                    typeof response.content === "string"
-                        ? response.content
-                        : "No content returned";
-                this.logger.error(
-                    `LLMService.processEmailTask -> Error: ${errorContent}`
-                );
                 throw new Error(
                     `LLM API returned status ${response.statusCode}`
                 );
@@ -82,7 +81,7 @@ export class LLMService {
             const data = JSON.parse(response.content);
 
             // Debug the response structure
-            this.logger.debug("LLM Response Structure:", JSON.stringify(data, null, 2));
+            this.logger.debug("LLM Response Structure:", JSON.stringify(data));
 
             // The DeepInfra API returns results in a different format
             if (!data.results || !data.results[0] || !data.results[0].generated_text) {
@@ -93,9 +92,64 @@ export class LLMService {
             const generatedText = data.results[0].generated_text;
             this.logger.debug("Generated Text:", generatedText);
 
+            // Extract JSON from the response
+            const jsonText = this.extractJsonFromText(generatedText);
+            this.logger.debug("Extracted JSON Text:", jsonText);
+
+            if (!jsonText) {
+                throw new Error("Failed to extract valid JSON from LLM response");
+            }
+
+            // Parse the extracted JSON
+            const llmResponse = JSON.parse(jsonText);
+            this.logger.debug(`Parsed LLM Response: ${JSON.stringify(llmResponse)}`);
+
+            // Map action string to enum
+            const actionType = this.mapActionType(llmResponse.action);
+
+            // For send-email action, make sure to map 'content' to 'body' for compatibility
+            if (actionType === LLMEmailActionType.SEND_EMAIL &&
+                llmResponse.parameters &&
+                llmResponse.parameters.content &&
+                !llmResponse.parameters.body) {
+
+                llmResponse.parameters.body = llmResponse.parameters.content;
+            }
+
+            return {
+                action: actionType,
+                parameters: llmResponse.parameters || {},
+                rationale: llmResponse.rationale || "No rationale provided",
+                userGuidance: llmResponse.user_guidance || llmResponse.userGuidance,
+            };
+        } catch (error) {
+            const errorMessage = `LLM request failed: ${error.message}`;
+            this.logger.error(
+                `LLMService.processEmailTask -> Error processing task: ${errorMessage}`
+            );
+
+            // Return a user-friendly error response
+            return {
+                action: LLMEmailActionType.UNKNOWN,
+                parameters: {
+                    error: error.message,
+                },
+                rationale: "An error occurred while processing your request.",
+                userGuidance: "Please try again with a simpler request or the thing u are requesting may not be completely implemented."
+            };
+        }
+    }
+
+    private extractJsonFromText(text: string): string {
+        if (!text || typeof text !== 'string') {
+            this.logger.error("Invalid text provided to extractJsonFromText:", text);
+            return '';
+        }
+
+        try {
             // Extract JSON from code block if present (remove markdown code block syntax)
-            let jsonText = generatedText;
-            if (jsonText.includes("```")) {
+            let jsonText = text;
+            if (typeof jsonText === 'string' && jsonText.includes("```")) {
                 // Extract content between code block markers
                 const match = jsonText.match(/```(?:json)?\n([\s\S]*?)\n```/);
                 if (match && match[1]) {
@@ -110,139 +164,33 @@ export class LLMService {
             }
 
             // Try to find JSON object in the response text
-            if (!jsonText.trim().startsWith('{')) {
+            if (typeof jsonText === 'string' && !jsonText.trim().startsWith('{')) {
                 const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
                 if (jsonMatch && jsonMatch[0]) {
                     jsonText = jsonMatch[0];
                 }
             }
 
-            this.logger.debug("Extracted JSON Text:", jsonText);
-
-            // Parse the extracted JSON
-            let llmResponse;
-            try {
-                llmResponse = JSON.parse(jsonText);
-            } catch (parseError) {
-                this.logger.error("Error parsing LLM JSON:", parseError);
-                this.logger.debug("Failed JSON Text:", jsonText);
-                throw new Error(`Could not parse JSON from LLM response: ${parseError.message}`);
-            }
-
-            this.logger.debug(`LLMService.processEmailTask -> LLM Response: ${JSON.stringify(llmResponse)}`);
-
-            // Parse the LLM's response into our action format
-            const actionType = this.mapActionType(llmResponse.action);
-            const emailAction: ILLMEmailAction = {
-                action: actionType,
-                parameters: llmResponse.parameters || {},
-                rationale: llmResponse.rationale || ''
-            };
-
-            // If there's user guidance provided, add it to the action
-            if (llmResponse.user_guidance) {
-                emailAction.userGuidance = llmResponse.user_guidance;
-            }
-
-            // Special handling for summarize action - map to appropriate existing command
-            if (emailAction.action === LLMEmailActionType.SUMMARIZE) {
-                const type = emailAction.parameters.type;
-
-                if (type === "email_report") {
-                    // Map to report command
-                    emailAction.action = LLMEmailActionType.SUMMARIZE;
-                    // Ensure days parameter exists, default to 7 if not specified
-                    if (!emailAction.parameters.days || isNaN(parseInt(String(emailAction.parameters.days)))) {
-                        emailAction.parameters.days = 7;
-                    }
+            // If we still don't have valid JSON, try to extract any JSON-like content
+            if (typeof jsonText === 'string' && !jsonText.trim().startsWith('{')) {
+                const anyJsonMatch = text.match(/\{[\s\S]*?\}/g);
+                if (anyJsonMatch && anyJsonMatch[0]) {
+                    jsonText = anyJsonMatch[0];
                 }
             }
 
-            // For send email action, ensure parameters are properly formatted
-            if (emailAction.action === LLMEmailActionType.SEND_EMAIL) {
-                // Ensure to/recipient is always in array format
-                if (typeof emailAction.parameters.to === "string") {
-                    emailAction.parameters.to = [emailAction.parameters.to];
-                }
-
-                // Handle case where a user explicitly wants no subject
-                const taskLower = taskRequest.task.toLowerCase();
-                const noSubjectPhrases = [
-                    "no subject",
-                    "without subject",
-                    "without a subject",
-                ];
-
-                const hasNoSubjectPhrase = noSubjectPhrases.some((phrase) =>
-                    taskLower.includes(phrase)
-                );
-
-                // If user specifically wants no subject or subject is set to empty string, keep it that way
-                if (
-                    hasNoSubjectPhrase ||
-                    emailAction.parameters.subject === ""
-                ) {
-                    emailAction.parameters.subject = "";
-                }
-                // If subject is undefined but not explicitly requested to be empty, provide a default
-                else if (
-                    emailAction.parameters.subject === undefined ||
-                    emailAction.parameters.subject === null
-                ) {
-                    // Try to generate a minimal subject from the body (first few words)
-                    const bodyText = emailAction.parameters.body || "";
-                    const subjectFromBody = bodyText
-                        .split(" ")
-                        .slice(0, 3)
-                        .join(" ");
-                    emailAction.parameters.subject =
-                        subjectFromBody || "No Subject";
-                }
-
-                // Ensure body is not undefined
-                if (!emailAction.parameters.body) {
-                    emailAction.parameters.body =
-                        emailAction.parameters.text || "No content provided";
-                }
+            // If no JSON was found, return empty string
+            if (typeof jsonText !== 'string' || !jsonText.trim().startsWith('{')) {
+                return '';
             }
 
-            // Handle special case for count emails
-            if (emailAction.action === LLMEmailActionType.COUNT_EMAILS) {
-                // If startDate or endDate is missing, set defaults
-                if (!emailAction.parameters.startDate) {
-                    // Default to 7 days ago
-                    const oneWeekAgo = new Date();
-                    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-                    emailAction.parameters.startDate = oneWeekAgo
-                        .toISOString()
-                        .split("T")[0];
-                }
-
-                if (!emailAction.parameters.endDate) {
-                    // Default to today
-                    emailAction.parameters.endDate = new Date()
-                        .toISOString()
-                        .split("T")[0];
-                }
-            }
-
-            this.logger.debug(
-                `LLMService.processEmailTask -> Parsed action: ${JSON.stringify(
-                    emailAction
-                )}`
-            );
-
-            return emailAction;
+            // Verify the extracted text is valid JSON
+            JSON.parse(jsonText); // This will throw if it's not valid JSON
+            return jsonText;
         } catch (error) {
-            this.logger.error(
-                `LLMService.processEmailTask -> Error processing task: ${error}`
-            );
-            return {
-                action: LLMEmailActionType.UNKNOWN,
-                parameters: {
-                    error: error.message,
-                },
-            };
+            this.logger.error(`Error extracting JSON from text: ${error.message}`);
+            this.logger.debug("Original text:", text);
+            return '';
         }
     }
 
@@ -286,9 +234,10 @@ export class LLMService {
                 },
                 data: {
                     input: prompt,
-                    temperature: 0.1,
-                    max_tokens: 1000,
+                    temperature: 0.3,
+                    max_tokens: 10000,
                 },
+                timeout: this.requestTimeout,
             });
 
             if (response.statusCode !== 200) {
@@ -379,12 +328,8 @@ export class LLMService {
         messages: string,
         channelName: string
     ): Promise<string> {
-        this.logger.debug(
-            `LLMService.generateSummary -> Generating summary for channel: ${channelName}`
-        );
-
-        const prompt = `You are a chat summarization assistant.
-            Summarize the following conversation from the "${channelName}" channel in a clear, concise manner.
+        const prompt = `
+            You are a Rocket.Chat channel summarizer. You need to create a concise summary of the conversation in the "${channelName}" channel.
             Focus on the main topics discussed, important decisions made, and action items.
             Structure the summary as a coherent paragraph.
 
@@ -405,6 +350,7 @@ export class LLMService {
                     temperature: 0.3,
                     max_tokens: 1000,
                 },
+                timeout: this.requestTimeout,
             });
 
             if (response.statusCode !== 200) {

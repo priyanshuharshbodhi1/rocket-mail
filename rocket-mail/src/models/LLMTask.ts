@@ -34,7 +34,8 @@ export interface IEmailSendParams {
     cc?: string[];
     bcc?: string[];
     subject: string;
-    body: string;
+    body?: string;     // For backward compatibility
+    content?: string;  // New parameter name to align with function calling
     html?: string;
     attachments?: any[];
     recipient?: string; // For compatibility with older code
