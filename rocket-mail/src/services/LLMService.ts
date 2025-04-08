@@ -211,7 +211,12 @@ export class LLMService {
                 return LLMEmailActionType.SEND_EMAIL;
             case "summarize":
                 return LLMEmailActionType.SUMMARIZE;
+            case "summarize-and-send":
+                return LLMEmailActionType.SUMMARIZE_AND_SEND;
+            case "get-report":
+                return LLMEmailActionType.GET_REPORT;
             default:
+                this.logger.debug(`Unknown action type: ${action}`);
                 return LLMEmailActionType.UNKNOWN;
         }
     }

@@ -82,9 +82,15 @@ export interface ISummarizeParams {
 }
 
 export interface ISummarizeAndSendParams {
+    // Email summarization
+    emailIds?: string[];
+    // Chat summarization
     days?: number;
     participants?: string[];
+    roomId?: string;
+    // Required parameters
     recipient: string;
+    // Optional parameters
     subject?: string;
     format?: 'bullet' | 'paragraph' | 'detailed' | 'brief';
     additionalContent?: string;
