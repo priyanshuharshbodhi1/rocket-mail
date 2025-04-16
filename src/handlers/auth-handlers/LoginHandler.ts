@@ -105,4 +105,11 @@ export class LoginCommand implements ISlashCommand {
             await modify.getCreator().finish(messageBuilder);
         }
     }
+
+
+    /**
+     * For other email providers similar methods like handleGmailLogin() can be implemented
+     */
+
+    
 }
