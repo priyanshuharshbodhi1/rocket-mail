@@ -126,7 +126,7 @@ export class RocketMailCommand implements ISlashCommand {
                 this.app
             );
 
-            // Process the natural language request - explicitly pass the room
+            // Process the natural language request
             const result = await llmTaskHandler.processTask(fullRequest, sender, room);
 
             this.app.getLogger().debug(`LLMTaskHandler.processTask -> Result: ${JSON.stringify(result)}`);

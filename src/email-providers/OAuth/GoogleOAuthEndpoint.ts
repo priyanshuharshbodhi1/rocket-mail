@@ -91,7 +91,7 @@ export class GoogleOAuthEndpoint implements IApiEndpoint {
     }
 
     /**
-     * Create an error response
+     * Page shown when authentication fails
      */
     private createErrorResponse(errorMessage: string): IApiResponse {
         return {
@@ -166,7 +166,7 @@ export class GoogleOAuthEndpoint implements IApiEndpoint {
     }
 
     /**
-     * Create a success response
+     * Page shown when authentication is successful
      */
     private createSuccessResponse(email: string): IApiResponse {
         return {

@@ -3,7 +3,6 @@ import { IEmailSettings } from '../types/interfaces/IEmailService';
 import { GmailService } from '../services/GmailService';
 import { GoogleOAuthService } from './OAuth/GoogleOAuthService';
 import { EmailProviders } from '../types/enums/EmailProviders';
-// import { SettingsIds } from '../enums/SettingsIds';
 
 export class EmailServiceFactory {
     /**
@@ -39,10 +38,10 @@ export class EmailServiceFactory {
                     const authUrl = await oauthService.getAuthorizationUrl(userId);
 
                     // Simply provide a link for authentication
-                    throw new Error(`You need to authenticate with Gmail first. Use /rocket-mail login command or [Click here to Login](${authUrl})`);
+                    throw new Error(`You need to authenticate with ${settings.provider} first. Use /rocket-mail login command or [Click here to Login](${authUrl})`);
                 } catch (error) {
                     // Handle any errors in generating the authentication URL
-                    if (error.message.includes('authenticate with Gmail first')) {
+                    if (error.message.includes(`authenticate with ${settings.provider} first`)) {
                         throw error; // Re-throw our custom error message
                     } else {
                         throw new Error(`Authentication error: ${error.message}. Please try /rocket-mail login to authenticate.`);
@@ -64,7 +63,7 @@ export class EmailServiceFactory {
             }
         }
 
-        // For other providers (to be implemented later)
+        //IMPORTANT: For other providers (to be implemented later)
         throw new Error(`Email provider ${settings.provider} is not supported yet. Currently only Gmail is supported.`);
     }
 }

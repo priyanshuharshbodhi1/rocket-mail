@@ -25,9 +25,11 @@ export async function getEmailSettings(settingsReader: ISettingRead): Promise<IE
     };
 }
 
-/**
- * Get DeepInfra API key from settings
- */
-export async function getDeepInfraApiKey(settingsReader: ISettingRead): Promise<string> {
-    return (await settingsReader.getValueById(SettingsIds.DeepInfraApiKey) as string) || '';
-}
+
+
+// /**
+//  * Get DeepInfra API key from settings
+//  */
+// export async function getDeepInfraApiKey(settingsReader: ISettingRead): Promise<string> {
+//     return (await settingsReader.getValueById(SettingsIds.DeepInfraApiKey) as string) || '';
+// }

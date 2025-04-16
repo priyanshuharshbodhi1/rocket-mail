@@ -124,7 +124,7 @@ export class GoogleOAuthService {
     }
 
     /**
-     * Exchange authorization code for tokens
+     * Exchange Access Token and Refresh Token by providing Authorization Code
      */
     public async exchangeCodeForTokens(code: string): Promise<IOAuthCredentials> {
         this.logger.debug('OAuthService.exchangeCodeForTokens -> Exchanging code for tokens');
