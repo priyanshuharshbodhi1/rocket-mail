@@ -9,6 +9,7 @@ import { ISummarizeParams } from "../models/SummarizeParams";
 import { RocketMailApp } from "../../RocketMailApp";
 import getIntentDetectionPrompt from "../constants/prompts/IntentDetectionPrompt";
 import getSummarizePrompt from "../constants/prompts/SummarisePrompt";
+import * as SettingsUtil from "../utils/SettingsUtil";
 
 export class LLMService {
     private apiUrl =
@@ -28,7 +29,7 @@ export class LLMService {
     private async initialize() {
         if (this.app) {
             try {
-                this.apiKey = await this.app.getDeepInfraApiKey();
+                this.apiKey = await SettingsUtil.getDeepInfraApiKey(this.app);
             } catch (error) {
                 this.logger.error("Failed to initialize LLM API key:", error);
             }
@@ -110,105 +111,83 @@ export class LLMService {
             const actionType = this.mapActionType(llmResponse.action);
 
             // For send-email action, make sure to map 'content' to 'body' for compatibility
-            if (actionType === LLMEmailActionType.SEND_EMAIL &&
-                llmResponse.parameters &&
-                llmResponse.parameters.content &&
-                !llmResponse.parameters.body) {
-
-                llmResponse.parameters.body = llmResponse.parameters.content;
+            if (actionType === LLMEmailActionType.SEND_EMAIL) {
+                if (llmResponse.content && !llmResponse.body) {
+                    llmResponse.body = llmResponse.content;
+                    delete llmResponse.content;
+                }
             }
 
             return {
                 action: actionType,
-                parameters: llmResponse.parameters || {},
-                rationale: llmResponse.rationale || "No rationale provided",
-                userGuidance: llmResponse.user_guidance || llmResponse.userGuidance,
+                ...llmResponse,
             };
         } catch (error) {
-            const errorMessage = `LLM request failed: ${error.message}`;
             this.logger.error(
-                `LLMService.processEmailTask -> Error processing task: ${errorMessage}`
+                `LLMService.processEmailTask -> Error processing task: ${error}`
             );
-
-            // Return a user-friendly error response
-            return {
-                action: LLMEmailActionType.UNKNOWN,
-                parameters: {
-                    error: error.message,
-                },
-                rationale: "An error occurred while processing your request.",
-                userGuidance: "Please try again with a simpler request or the thing u are requesting may not be completely implemented."
-            };
+            throw new Error(`Failed to process task: ${error.message}`);
         }
     }
 
     private extractJsonFromText(text: string): string {
-        if (!text || typeof text !== 'string') {
-            this.logger.error("Invalid text provided to extractJsonFromText:", text);
-            return '';
+        // Try to find JSON object in the text
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch && jsonMatch[0]) {
+            try {
+                // Validate that it's valid JSON by parsing it
+                JSON.parse(jsonMatch[0]);
+                return jsonMatch[0];
+            } catch (e) {
+                // Not valid JSON, continue with other extraction methods
+            }
         }
 
-        try {
-            // Extract JSON from code block if present (remove markdown code block syntax)
-            let jsonText = text;
-            if (typeof jsonText === 'string' && jsonText.includes("```")) {
-                // Extract content between code block markers
-                const match = jsonText.match(/```(?:json)?\n([\s\S]*?)\n```/);
-                if (match && match[1]) {
-                    jsonText = match[1];
-                } else {
-                    // Try to find just the content after the opening code block
-                    const simpleMatch = jsonText.match(/```(?:json)?\n([\s\S]*)/);
-                    if (simpleMatch && simpleMatch[1]) {
-                        jsonText = simpleMatch[1].replace(/\n```$/, '');
-                    }
-                }
+        // Try to extract from code block
+        const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (codeBlockMatch && codeBlockMatch[1]) {
+            try {
+                // Check if the content of the code block is valid JSON
+                JSON.parse(codeBlockMatch[1]);
+                return codeBlockMatch[1];
+            } catch (e) {
+                // Not valid JSON, continue with other extraction methods
             }
-
-            // Try to find JSON object in the response text
-            if (typeof jsonText === 'string' && !jsonText.trim().startsWith('{')) {
-                const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-                if (jsonMatch && jsonMatch[0]) {
-                    jsonText = jsonMatch[0];
-                }
-            }
-
-            // If we still don't have valid JSON, try to extract any JSON-like content
-            if (typeof jsonText === 'string' && !jsonText.trim().startsWith('{')) {
-                const anyJsonMatch = text.match(/\{[\s\S]*?\}/g);
-                if (anyJsonMatch && anyJsonMatch[0]) {
-                    jsonText = anyJsonMatch[0];
-                }
-            }
-
-            // If no JSON was found, return empty string
-            if (typeof jsonText !== 'string' || !jsonText.trim().startsWith('{')) {
-                return '';
-            }
-
-            // Verify the extracted text is valid JSON
-            JSON.parse(jsonText); // This will throw if it's not valid JSON
-            return jsonText;
-        } catch (error) {
-            this.logger.error(`Error extracting JSON from text: ${error.message}`);
-            this.logger.debug("Original text:", text);
-            return '';
         }
+
+        // As a last resort, try to find anything that looks like JSON
+        const lastResortMatch = text.match(/(\{[\s\S]*?\})/g);
+        if (lastResortMatch) {
+            for (const potentialJson of lastResortMatch) {
+                try {
+                    JSON.parse(potentialJson);
+                    return potentialJson;
+                } catch (e) {
+                    // Continue to the next potential JSON
+                }
+            }
+        }
+
+        return "";
     }
 
     /**
      * Map string action to LLMEmailActionType enum
      */
     private mapActionType(action: string): LLMEmailActionType {
-        switch (action) {
+        const normalizedAction = action.toLowerCase().trim();
+
+        switch (normalizedAction) {
+            case "send-email":
+            case "send_email":
+            case "sendemail":
+                return LLMEmailActionType.SEND_EMAIL;
             case "search-emails":
                 return LLMEmailActionType.SEARCH_EMAILS;
             case "count-emails":
                 return LLMEmailActionType.COUNT_EMAILS;
             case "view-email":
                 return LLMEmailActionType.VIEW_EMAIL;
-            case "send-email":
-                return LLMEmailActionType.SEND_EMAIL;
             case "summarize":
                 return LLMEmailActionType.SUMMARIZE;
             case "summarize-and-send":
@@ -216,7 +195,6 @@ export class LLMService {
             case "get-report":
                 return LLMEmailActionType.GET_REPORT;
             default:
-                this.logger.debug(`Unknown action type: ${action}`);
                 return LLMEmailActionType.UNKNOWN;
         }
     }
@@ -259,9 +237,6 @@ export class LLMService {
 
             const data = JSON.parse(response.content);
 
-            // Debug the response structure
-            this.logger.debug("LLM Response Structure:", JSON.stringify(data, null, 2));
-
             // The DeepInfra API returns results in a different format
             if (!data.results || !data.results[0] || !data.results[0].generated_text) {
                 throw new Error("Invalid response structure from LLM API");
@@ -271,60 +246,25 @@ export class LLMService {
             const generatedText = data.results[0].generated_text;
             this.logger.debug("Generated Text:", generatedText);
 
-            // Extract JSON from code block if present (remove markdown code block syntax)
-            let jsonText = generatedText;
-            if (jsonText.includes("```")) {
-                // Extract content between code block markers
-                const match = jsonText.match(/```(?:json)?\n([\s\S]*?)\n```/);
-                if (match && match[1]) {
-                    jsonText = match[1];
-                } else {
-                    // Try to find just the content after the opening code block
-                    const simpleMatch = jsonText.match(/```(?:json)?\n([\s\S]*)/);
-                    if (simpleMatch && simpleMatch[1]) {
-                        jsonText = simpleMatch[1].replace(/\n```$/, '');
-                    }
-                }
-            }
-
-            // Try to find JSON object in the response text
-            if (!jsonText.trim().startsWith('{')) {
-                const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-                if (jsonMatch && jsonMatch[0]) {
-                    jsonText = jsonMatch[0];
-                }
-            }
-
+            // Extract JSON from the response
+            const jsonText = this.extractJsonFromText(generatedText);
             this.logger.debug("Extracted JSON Text:", jsonText);
 
-            // Parse the extracted JSON
-            let llmResponse;
-            try {
-                llmResponse = JSON.parse(jsonText);
-            } catch (parseError) {
-                this.logger.error("Error parsing LLM JSON:", parseError);
-                this.logger.debug("Failed JSON Text:", jsonText);
-                throw new Error(`Could not parse JSON from LLM response: ${parseError.message}`);
+            if (!jsonText) {
+                throw new Error("Failed to extract valid JSON from LLM response");
             }
 
-            this.logger.debug(`LLMService.processSummarizeTask -> LLM Response: ${JSON.stringify(llmResponse)}`);
+            // Parse the extracted JSON
+            const llmResponse = JSON.parse(jsonText);
+            this.logger.debug(`Parsed LLM Response: ${JSON.stringify(llmResponse)}`);
 
-            return llmResponse;
+            // Return the summarize parameters based on the ISummarizeParams interface
+            return llmResponse as ISummarizeParams;
         } catch (error) {
             this.logger.error(
-                `LLMService.processSummarizeTask -> Error processing instruction: ${error}`
+                `LLMService.processSummarizeTask -> Error processing task: ${error}`
             );
-            // Return default parameters
-            return {
-                timeframe: {
-                    type: "today",
-                },
-                participants: [],
-                keywords: [],
-                format: "paragraph",
-                maxLength: 0,
-                recipient_email: "",
-            };
+            throw new Error(`Failed to process summarize task: ${error.message}`);
         }
     }
 
@@ -335,9 +275,11 @@ export class LLMService {
         messages: string,
         channelName: string
     ): Promise<string> {
-        const prompt = `
-            You are a Rocket.Chat channel summarizer. You need to create a concise summary of the conversation in the "${channelName}" channel.
-            Focus on the main topics discussed, important decisions made, and action items.
+        this.logger.debug(
+            `LLMService.generateSummary -> Generating summary for channel: ${channelName}`
+        );
+
+        const prompt = `You are an AI assistant tasked with summarizing a Rocket.Chat conversation from the channel "${channelName}".
             Structure the summary as a coherent paragraph.
 
             Here's the conversation:

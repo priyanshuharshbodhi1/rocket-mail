@@ -71,53 +71,17 @@ export class RocketMailApp extends App {
         ]);
     }
 
-    /**
-     * Get the persistence accessor
-     * Provides an accessor to write data to the App's persistent storage. A App only has access to its own persistent storage and does not have access to any other App's.
-     */
-    public getPersistence(): IPersistence {
-        throw new Error('Provides an accessor to write data to the App\'s persistent storage. A App only has access to its own persistent storage and does not have access to any other App\'s.');
-    }
+    // /**
+    //  * Get the read accessor
+    //  */
+    // public getRead(): IRead {
+    //     return SettingsUtil.getRead(this);
+    // }
 
-    /**
-     * Get the read accessor
-     */
-    public getRead(): IRead {
-        return SettingsUtil.getRead(this);
-    }
-
-    /**
-     * Get the persistence reader directly
-     */
-    public getPersistenceReader(): IPersistenceRead {
-        return SettingsUtil.getPersistenceReader(this);
-    }
-
-    /**
-     * Get DeepInfra API key from settings
-     */
-    public async getDeepInfraApiKey(): Promise<string> {
-        return SettingsUtil.getDeepInfraApiKey(this);
-    }
-
-    /**
-     * Get OAuth client ID from settings
-     */
-    public async getOAuthClientId(): Promise<string> {
-        return SettingsUtil.getOAuthClientId(this);
-    }
-
-    /**
-     * Get OAuth client secret from settings
-     */
-    public async getOAuthClientSecret(): Promise<string> {
-        return SettingsUtil.getOAuthClientSecret(this);
-    }
-
-    /**
-     * Get OAuth redirect URI from settings
-     */
-    public async getOAuthRedirectUri(): Promise<string> {
-        return SettingsUtil.getOAuthRedirectUri(this);
-    }
+    // /**
+    //  * Get the persistence reader directly
+    //  */
+    // public getPersistenceReader(): IPersistenceRead {
+    //     return SettingsUtil.getPersistenceReader(this);
+    // }
 }

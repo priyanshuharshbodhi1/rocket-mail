@@ -12,6 +12,7 @@ import {
 } from '@rocket.chat/apps-engine/definition/api';
 import { RocketMailApp } from '../../../RocketMailApp';
 import { GoogleOAuthService } from './GoogleOAuthService';
+import * as SettingsUtil from '../../utils/SettingsUtil';
 
 export class GoogleOAuthEndpoint implements IApiEndpoint {
     public path = 'oauth-callback';
@@ -35,11 +36,11 @@ export class GoogleOAuthEndpoint implements IApiEndpoint {
                 get: async (key: string) => {
                     switch(key) {
                         case 'oauth_client_id':
-                            return await this.app.getOAuthClientId();
+                            return await SettingsUtil.getOAuthClientId(this.app);
                         case 'oauth_client_secret':
-                            return await this.app.getOAuthClientSecret();
+                            return await SettingsUtil.getOAuthClientSecret(this.app);
                         case 'oauth_redirect_uri':
-                            return await this.app.getOAuthRedirectUri();
+                            return await SettingsUtil.getOAuthRedirectUri(this.app);
                         default:
                             return '';
                     }

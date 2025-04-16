@@ -2,13 +2,13 @@ import { IPersistence, IRead, IPersistenceRead } from '@rocket.chat/apps-engine/
 import { RocketMailApp } from '../../RocketMailApp';
 
 // Export helper functions instead of a class
-export function getRead(app: RocketMailApp): IRead {
-    return app.getAccessors().reader;
-}
+// export function getRead(app: RocketMailApp): IRead {
+//     return app.getAccessors().reader;
+// }
 
-export function getPersistenceReader(app: RocketMailApp): IPersistenceRead {
-    return getRead(app).getPersistenceReader();
-}
+// export function getPersistenceReader(app: RocketMailApp): IPersistenceRead {
+//     return getRead(app).getPersistenceReader();
+// }
 
 export async function getDeepInfraApiKey(app: RocketMailApp): Promise<string> {
     try {
