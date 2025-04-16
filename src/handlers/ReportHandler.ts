@@ -80,7 +80,7 @@ export class ReportCommand {
                 const searchParams = {
                     startDate: startDateStr,
                     endDate: endDateStr,
-                    limit: 5 // Just show a few recent emails
+                    limit: 50                //ADJUSTABLE: Just show a few recent emails
                 };
 
                 const recentEmails = await emailService.searchEmails(searchParams);

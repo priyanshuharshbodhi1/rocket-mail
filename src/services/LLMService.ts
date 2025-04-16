@@ -179,8 +179,8 @@ export class LLMService {
 
         switch (normalizedAction) {
             case "send-email":
-            case "send_email":
-            case "sendemail":
+            // case "send_email":
+            // case "sendemail":
                 return LLMEmailActionType.SEND_EMAIL;
             case "search-emails":
                 return LLMEmailActionType.SEARCH_EMAILS;

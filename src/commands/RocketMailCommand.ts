@@ -15,7 +15,7 @@ import { ListCommand } from "../handlers/contacts-handlers/ListHandler";
 import { SendEmailCommand } from "../handlers/SendEmailHandler";
 import { HelpCommand } from "../handlers/HelpHandler";
 import { ContactService } from "../services/ContactService";
-import { LLMTaskHandler } from "../handlers/NaturalLanguageRequestHandler";
+import { NaturalLanguageRequestHandler } from "../handlers/NaturalLanguageRequestHandler";
 import { LoginCommand } from "../handlers/auth-handlers/LoginHandler";
 import { LogoutCommand } from "../handlers/auth-handlers/LogoutHandler";
 import { ReportCommand } from "../handlers/ReportHandler";
@@ -116,7 +116,7 @@ export class RocketMailCommand implements ISlashCommand {
 
         try {
             // Initialize the LLM task handler
-            const llmTaskHandler = new LLMTaskHandler(
+            const llmTaskHandler = new NaturalLanguageRequestHandler(
                 read,
                 http,
                 modify,

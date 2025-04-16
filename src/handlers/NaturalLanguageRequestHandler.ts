@@ -17,7 +17,7 @@ import { IContact } from "../types/interfaces/IContact";
 import { IEmailSettings } from "../types/interfaces/IEmailService";
 import { GmailService } from "../services/GmailService";
 
-export class LLMTaskHandler {
+export class NaturalLanguageRequestHandler {
     private llmService: LLMService;
     private messageService: MessageService;
 
