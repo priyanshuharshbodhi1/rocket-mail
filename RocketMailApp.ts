@@ -3,9 +3,6 @@ import {
     IAppAccessors,
     IConfigurationExtend,
     ILogger,
-    IPersistence,
-    IRead,
-    IPersistenceRead,
 } from '@rocket.chat/apps-engine/definition/accessors';
 import { IAppInfo } from '@rocket.chat/apps-engine/definition/metadata';
 import { extendSettings } from './src/config/SettingsManager';
@@ -13,7 +10,6 @@ import { RocketMailCommand } from './src/commands/RocketMailCommand';
 import { GoogleOAuthEndpoint } from './src/email-providers/OAuth/GoogleOAuthEndpoint';
 import { SettingType } from '@rocket.chat/apps-engine/definition/settings';
 import { ApiSecurity, ApiVisibility } from '@rocket.chat/apps-engine/definition/api';
-import * as SettingsUtil from './src/utils/SettingsUtil';
 
 export class RocketMailApp extends App {
     constructor(info: IAppInfo, logger: ILogger, accessors: IAppAccessors) {
@@ -70,6 +66,9 @@ export class RocketMailApp extends App {
             configuration.slashCommands.provideSlashCommand(new RocketMailCommand(this)),
         ]);
     }
+
+
+
 
     // /**
     //  * Get the read accessor
