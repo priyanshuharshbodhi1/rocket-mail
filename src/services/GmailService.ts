@@ -79,40 +79,40 @@ export class GmailService {
         }
     }
 
-    public async getLastReceivedEmail(): Promise<IEmailDetails> {
-        this.logger.debug('GmailService.getLastReceivedEmail -> Getting last received email');
+    // public async getLastReceivedEmail(): Promise<IEmailDetails> {
+    //     this.logger.debug('GmailService.getLastReceivedEmail -> Getting last received email');
 
-        try {
-            const accessToken = await this.getAccessToken();
+    //     try {
+    //         const accessToken = await this.getAccessToken();
 
-            // First, get the list of messages (just 1)
-            const listResponse = await this.http.get('https://gmail.googleapis.com/gmail/v1/users/me/messages', {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`
-                },
-                params: {
-                    maxResults: '1',
-                    q: 'in:inbox'
-                }
-            });
+    //         // First, get the list of messages (just 1)
+    //         const listResponse = await this.http.get('https://gmail.googleapis.com/gmail/v1/users/me/messages', {
+    //             headers: {
+    //                 'Authorization': `Bearer ${accessToken}`
+    //             },
+    //             params: {
+    //                 maxResults: '1',
+    //                 q: 'in:inbox'
+    //             }
+    //         });
 
-            if (listResponse.statusCode !== 200 || !listResponse.content) {
-                throw new Error(`Failed to get messages: ${listResponse.content}`);
-            }
+    //         if (listResponse.statusCode !== 200 || !listResponse.content) {
+    //             throw new Error(`Failed to get messages: ${listResponse.content}`);
+    //         }
 
-            const listData = JSON.parse(listResponse.content);
-            if (!listData.messages || listData.messages.length === 0) {
-                throw new Error('No emails found in inbox');
-            }
+    //         const listData = JSON.parse(listResponse.content);
+    //         if (!listData.messages || listData.messages.length === 0) {
+    //             throw new Error('No emails found in inbox');
+    //         }
 
-            // Get the full message
-            const messageId = listData.messages[0].id;
-            return await this.getEmailById(messageId);
-        } catch (error) {
-            this.logger.error(`GmailService.getLastReceivedEmail -> Error: ${error}`);
-            throw new Error(`Failed to retrieve latest email: ${error.message}`);
-        }
-    }
+    //         // Get the full message
+    //         const messageId = listData.messages[0].id;
+    //         return await this.getEmailById(messageId);
+    //     } catch (error) {
+    //         this.logger.error(`GmailService.getLastReceivedEmail -> Error: ${error}`);
+    //         throw new Error(`Failed to retrieve latest email: ${error.message}`);
+    //     }
+    // }
 
     public async searchEmails(params: IEmailSearchParams): Promise<IEmailSummary[]> {
         this.logger.debug('GmailService.searchEmails -> Searching emails with params:', params);

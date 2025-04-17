@@ -33,15 +33,11 @@ export class MessageService {
     }
 
     private getThreadIdFromContext(room: IRoom): string | undefined {
-        // Per Rocket.Chat's API, a thread is associated with a parent message ID
-        // This would come from the context where the command was executed
-
         // Look for thread context in room customFields
         if (room.customFields && room.customFields.threadId) {
             return room.customFields.threadId as string;
         }
 
-        // If not found in customFields, we don't have access to threadId in this context
         return undefined;
     }
 
