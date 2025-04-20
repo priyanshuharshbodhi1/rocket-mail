@@ -4,6 +4,7 @@ import {
     IRead,
     IPersistence,
 } from "@rocket.chat/apps-engine/definition/accessors";
+import { IUser } from "@rocket.chat/apps-engine/definition/users";
 import { getEmailSettings } from "../config/SettingsManager";
 import { RocketMailApp } from "../../RocketMailApp";
 import { ContactService } from "../services/ContactService";
@@ -27,18 +28,19 @@ export class SendEmailCommand {
         const [recipient, subject, ...contentParts] = args;
         const content = contentParts.join(" ");
 
+        const appUser = await read.getUserReader().getAppUser() as IUser;
         const messageBuilder = modify
             .getCreator()
             .startMessage()
-            .setSender(sender)
-            .setRoom(room);
+            .setSender(appUser)
+            .setRoom(room)
+            .setGroupable(false);
 
         if (!recipient || !subject || !content) {
             messageBuilder.setText(
                 "Usage: /rocket-mail SendEmail <recipient> <subject> <message>"
             );
-            await modify.getCreator().finish(messageBuilder);
-            return;
+            return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
         }
 
         try {
@@ -83,6 +85,6 @@ export class SendEmailCommand {
             messageBuilder.setText(`❌ Error sending email: ${error.message}`);
         }
 
-        await modify.getCreator().finish(messageBuilder);
+        return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
     }
 }
