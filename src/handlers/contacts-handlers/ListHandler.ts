@@ -1,4 +1,5 @@
 import { IModify, IRead } from "@rocket.chat/apps-engine/definition/accessors";
+import { IUser } from "@rocket.chat/apps-engine/definition/users";
 import { ContactService } from "../../services/ContactService";
 import { RocketMailApp } from "../../../RocketMailApp";
 
@@ -14,19 +15,20 @@ export class ListCommand {
         modify: IModify,
         read: IRead
     ): Promise<void> {
+        const appUser = await read.getUserReader().getAppUser() as IUser;
         const messageBuilder = modify
             .getCreator()
             .startMessage()
-            .setSender(sender)
-            .setRoom(room);
+            .setSender(appUser)
+            .setRoom(room)
+            .setGroupable(false);
 
         try {
             const contacts = await this.contactService.getContacts(sender.id, read);
 
             if (contacts.length === 0) {
                 messageBuilder.setText("You have no saved contacts.");
-                await modify.getCreator().finish(messageBuilder);
-                return;
+                return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
             }
 
             let contactListText = "**Your Email Contacts**\n\n";
@@ -40,6 +42,6 @@ export class ListCommand {
             messageBuilder.setText(`Error listing contacts: ${error.message}`);
         }
 
-        await modify.getCreator().finish(messageBuilder);
+        return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
     }
 }
