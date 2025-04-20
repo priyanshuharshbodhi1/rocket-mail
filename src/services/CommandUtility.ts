@@ -18,20 +18,8 @@ import { NaturalLanguageRequestHandler } from "../handlers/NaturalLanguageReques
 import { LoginCommand } from "../handlers/auth-handlers/LoginHandler";
 import { LogoutCommand } from "../handlers/auth-handlers/LogoutHandler";
 import { ReportCommand } from "../handlers/ReportHandler";
+import { SubCommandEnum } from "../types/enums/SubCommandEnum";
 
-// Define an enum for subcommands
-export enum SubcommandEnum {
-    SENDEMAIL = 'sendemail',
-    ADD = 'add',
-    DELETE = 'delete',
-    LIST = 'list',
-    HELP = 'help',
-    LOGIN = 'login',
-    LOGOUT = 'logout',
-    REPORT = 'report',
-}
-
-// Define the ExecutorProps interface
 export interface ExecutorProps {
     sender: IUser;
     room: IRoom;
@@ -73,40 +61,40 @@ export class CommandUtility implements ExecutorProps {
         const [subcommand, ...args] = this.command;
 
         switch (subcommand.toLowerCase()) {
-            case SubcommandEnum.SENDEMAIL:
+            case SubCommandEnum.SENDEMAIL:
                 await new SendEmailCommand(this.app, this.contactService).execute(
                     args, this.sender, this.room, this.read, this.modify, this.http, this.persistence
                 );
                 break;
-            case SubcommandEnum.ADD:
+            case SubCommandEnum.ADD:
                 await new AddCommand(this.app, this.contactService).execute(
                     args, this.sender, this.room, this.modify, this.persistence, this.read
                 );
                 break;
-            case SubcommandEnum.DELETE:
+            case SubCommandEnum.DELETE:
                 await new DeleteCommand(this.app, this.contactService).execute(
                     args, this.sender, this.room, this.modify, this.persistence, this.read
                 );
                 break;
-            case SubcommandEnum.LIST:
+            case SubCommandEnum.LIST:
                 await new ListCommand(this.app, this.contactService).execute(
                     this.sender, this.room, this.modify, this.read
                 );
                 break;
-            case SubcommandEnum.HELP:
+            case SubCommandEnum.HELP:
                 await new HelpCommand().execute(this.sender, this.room, this.modify, this.read);
                 break;
-            case SubcommandEnum.LOGIN:
+            case SubCommandEnum.LOGIN:
                 await new LoginCommand(this.app).executor(
                     this.context, this.read, this.modify, this.http, this.persistence
                 );
                 break;
-            case SubcommandEnum.LOGOUT:
+            case SubCommandEnum.LOGOUT:
                 await new LogoutCommand(this.app).executor(
                     this.context, this.read, this.modify, this.http, this.persistence
                 );
                 break;
-            case SubcommandEnum.REPORT:
+            case SubCommandEnum.REPORT:
                 await new ReportCommand(this.app).execute(
                     args, this.sender, this.room, this.read, this.modify, this.http, this.persistence
                 );
@@ -183,7 +171,7 @@ export class CommandUtility implements ExecutorProps {
             await new HelpCommand().execute(this.sender, this.room, this.modify, this.read);
             return;
         }
-        
+
         await this.handleSubcommands();
     }
 }
