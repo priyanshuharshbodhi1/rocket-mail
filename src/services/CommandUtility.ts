@@ -100,69 +100,17 @@ export class CommandUtility implements ExecutorProps {
                 );
                 break;
             default:
-                await this.handleNaturalLanguageRequest(subcommand, args);
-                break;
-        }
-    }
-
-    private async handleNaturalLanguageRequest(initialCommand: string, args: Array<string>): Promise<void> {
-        const fullRequest = [initialCommand, ...args].join(' ');
-
-        // Show processing message
-        const appUser = await this.read.getUserReader().getAppUser() as IUser;
-        const processingMessage = this.modify
-            .getCreator()
-            .startMessage()
-            .setSender(appUser)
-            .setRoom(this.room)
-            .setGroupable(false)
-            .setText(`Processing your request: "${fullRequest}"\nPlease wait...`);
-
-        await this.read.getNotifier().notifyUser(this.sender, processingMessage.getMessage());
-
-        try {
-            // Initialize the LLM task handler
-            const llmTaskHandler = new NaturalLanguageRequestHandler(
-                this.read,
-                this.http,
-                this.modify,
-                this.persistence,
-                this.contactService,
-                this.app.getLogger(),
-                this.app
-            );
-
-            // Process the natural language request
-            const result = await llmTaskHandler.processTask(fullRequest, this.sender, this.room);
-
-            this.app.getLogger().debug(`LLMTaskHandler.processTask -> Result: ${JSON.stringify(result)}`);
-
-            // Send the result message
-            const resultMessage = this.modify
-                .getCreator()
-                .startMessage()
-                .setSender(appUser)
-                .setRoom(this.room)
-                .setGroupable(false)
-                .setText(result.success
-                    ? result.message
-                    : `❌ ${result.message}`
+                const llmTaskHandler = new NaturalLanguageRequestHandler(
+                    this.read,
+                    this.http,
+                    this.modify,
+                    this.persistence,
+                    this.contactService,
+                    this.app.getLogger(),
+                    this.app
                 );
-
-            await this.read.getNotifier().notifyUser(this.sender, resultMessage.getMessage());
-        } catch (error) {
-            // Handle any unexpected errors
-            this.app.getLogger().error('Error processing natural language request:', error);
-
-            const errorMessage = this.modify
-                .getCreator()
-                .startMessage()
-                .setSender(appUser)
-                .setRoom(this.room)
-                .setGroupable(false)
-                .setText(`❌ An unexpected error occurred: ${error.message}\n\nPlease try again with a more specific request or use one of the standard commands (try /rocket-mail help).`);
-
-            await this.read.getNotifier().notifyUser(this.sender, errorMessage.getMessage());
+                await llmTaskHandler.handleNaturalLanguageRequest(subcommand, args, this.sender, this.room);
+                break;
         }
     }
 

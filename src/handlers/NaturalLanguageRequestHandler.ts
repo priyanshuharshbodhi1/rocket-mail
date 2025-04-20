@@ -3,7 +3,6 @@ import { RocketMailApp } from "../../RocketMailApp";
 import { LLMService } from "../services/LLMService";
 import { ContactService } from "../services/ContactService";
 import {
-    ILLMTaskRequest,
     ILLMTaskResult,
     ILLMEmailAction,
     LLMEmailActionType,
@@ -14,8 +13,8 @@ import { EmailServiceFactory } from "../email-providers/EmailServiceFactory";
 import { IRoom } from "@rocket.chat/apps-engine/definition/rooms";
 import { MessageService } from "../services/MessagesRetrievalService";
 import { IContact } from "../types/interfaces/IContact";
-import { IEmailSettings } from "../types/interfaces/IEmailService";
 import { GmailService } from "../services/GmailService";
+import { IUser } from "@rocket.chat/apps-engine/definition/users";
 
 export class NaturalLanguageRequestHandler {
     private llmService: LLMService;
@@ -33,6 +32,58 @@ export class NaturalLanguageRequestHandler {
         this.llmService = new LLMService(http, logger, app);
         this.messageService = new MessageService(logger);
     }
+
+    public async handleNaturalLanguageRequest(initialCommand: string, args: Array<string>, sender: IUser, room: IRoom): Promise<void> {
+        const fullRequest = [initialCommand, ...args].join(' ');
+
+        // Show processing message
+        const appUser = await this.read.getUserReader().getAppUser() as IUser;
+        const processingMessage = this.modify
+            .getCreator()
+            .startMessage()
+            .setSender(appUser)
+            .setRoom(room)
+            .setGroupable(false)
+            .setText(`Processing your request: "${fullRequest}"\nPlease wait...`);
+
+        await this.read.getNotifier().notifyUser(sender, processingMessage.getMessage());
+
+        try {
+            // Process the natural language request
+            const result = await this.processTask(fullRequest, sender, room);
+
+            this.logger.debug(`LLMTaskHandler.processTask -> Result: ${JSON.stringify(result)}`);
+
+            // Send the result message
+            const resultMessage = this.modify
+                .getCreator()
+                .startMessage()
+                .setSender(appUser)
+                .setRoom(room)
+                .setGroupable(false)
+                .setText(result.success
+                    ? result.message
+                    : `❌ ${result.message}`
+                );
+
+            await this.read.getNotifier().notifyUser(sender, resultMessage.getMessage());
+        } catch (error) {
+            // Handle any unexpected errors
+            this.logger.error('Error processing natural language request:', error);
+
+            const errorMessage = this.modify
+                .getCreator()
+                .startMessage()
+                .setSender(appUser)
+                .setRoom(room)
+                .setGroupable(false)
+                .setText(`❌ An unexpected error occurred: ${error.message}\n\nPlease try again with a more specific request or use one of the standard commands (try /rocket-mail help).`);
+
+            await this.read.getNotifier().notifyUser(sender, errorMessage.getMessage());
+        }
+    }
+
+/////////////////////// METHODS //////////////////////
 
     public async processTask(task: string, sender: any, room?: IRoom): Promise<ILLMTaskResult> {
         try {
@@ -69,6 +120,7 @@ export class NaturalLanguageRequestHandler {
             };
         }
     }
+
 
     private async processContactReferences(task: string, userId: string): Promise<string> {
         try {
