@@ -49,16 +49,13 @@ export class LogoutCommand {
             if (success) {
                 messageBuilder.setText('✅ Successfully disconnected your email account.');
                 return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
-                // await modify.getCreator().finish(messageBuilder);
             } else {
                 messageBuilder.setText('❌ You are not currently authenticated with an email provider.');
                 return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
-                // await modify.getCreator().finish(messageBuilder);
             }
         } catch (error) {
             messageBuilder.setText(`❌ Error logging out: ${error.message}`);
             return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
-            // await modify.getCreator().finish(messageBuilder);
         }
     }
 }

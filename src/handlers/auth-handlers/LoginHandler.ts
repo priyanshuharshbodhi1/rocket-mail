@@ -35,13 +35,6 @@ export class LoginCommand implements ISlashCommand {
 
         const appUser = await read.getUserReader().getAppUser() as IUser;
 
-
-        // Create message builder
-        // const messageBuilder = modify
-        //     .getCreator()
-        //     .startMessage()
-        //     .setSender(sender)
-        //     .setRoom(room);
         const messageBuilder = modify
             .getCreator()
             .startMessage()
@@ -70,8 +63,6 @@ export class LoginCommand implements ISlashCommand {
                 const userInfo = await oauthService.getUserInfo(sender.id);
                 messageBuilder.setText(`✅ You are already logged in as ${userInfo.email}. If you want to logout, use \`/rocket-mail logout\`.`);
                 return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
-                // await modify.getCreator().finish(messageBuilder);
-                return;
             }
 
             // Handle provider-specific login
@@ -84,18 +75,15 @@ export class LoginCommand implements ISlashCommand {
                 case EmailProviders.PROTON:
                     messageBuilder.setText(`⚠️ Authentication for ${settings.provider} is not yet implemented. Please use Gmail for now.`);
                     return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
-                    // await modify.getCreator().finish(messageBuilder);
                     break;
                 default:
                     messageBuilder.setText(`❌ Unknown email provider: ${settings.provider}`);
                     return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
-                    // await modify.getCreator().finish(messageBuilder);
             }
         } catch (error) {
             this.app.getLogger().error('Error in login command:', error);
             messageBuilder.setText(`❌ Error processing login: ${error.message}`);
             return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
-            // await modify.getCreator().finish(messageBuilder);
         }
     }
 
@@ -117,11 +105,9 @@ export class LoginCommand implements ISlashCommand {
             // Send message with auth URL as a clickable link
             messageBuilder.setText(`🔐 Connect your Gmail account: [Click here to Login](${authUrl})`);
             return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
-            // await modify.getCreator().finish(messageBuilder);
         } catch (error) {
             messageBuilder.setText(`❌ Error generating authentication URL: ${error.message}`);
             return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
-            // await modify.getCreator().finish(messageBuilder);
         }
     }
 

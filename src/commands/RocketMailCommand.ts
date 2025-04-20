@@ -4,6 +4,7 @@ import {
     IPersistence,
     IRead,
 } from "@rocket.chat/apps-engine/definition/accessors";
+import {IUser} from "@rocket.chat/apps-engine/definition/users";
 import {
     ISlashCommand,
     SlashCommandContext,
@@ -105,14 +106,16 @@ export class RocketMailCommand implements ISlashCommand {
         const fullRequest = [initialCommand, ...args].join(' ');
 
         // Show processing message
+        const appUser = await read.getUserReader().getAppUser() as IUser;
         const processingMessage = modify
             .getCreator()
             .startMessage()
-            .setSender(sender)
+            .setSender(appUser)
             .setRoom(room)
+            .setGroupable(false)
             .setText(`Processing your request: "${fullRequest}"\nPlease wait...`);
 
-        await modify.getCreator().finish(processingMessage);
+        await read.getNotifier().notifyUser(sender, processingMessage.getMessage());
 
         try {
             // Initialize the LLM task handler
@@ -135,14 +138,15 @@ export class RocketMailCommand implements ISlashCommand {
             const resultMessage = modify
                 .getCreator()
                 .startMessage()
-                .setSender(sender)
+                .setSender(appUser)
                 .setRoom(room)
+                .setGroupable(false)
                 .setText(result.success
                     ? result.message
                     : `❌ ${result.message}`
                 );
 
-            await modify.getCreator().finish(resultMessage);
+            await read.getNotifier().notifyUser(sender, resultMessage.getMessage());
         } catch (error) {
             // Handle any unexpected errors
             this.app.getLogger().error('Error processing natural language request:', error);
@@ -150,11 +154,12 @@ export class RocketMailCommand implements ISlashCommand {
             const errorMessage = modify
                 .getCreator()
                 .startMessage()
-                .setSender(sender)
+                .setSender(appUser)
                 .setRoom(room)
+                .setGroupable(false)
                 .setText(`❌ An unexpected error occurred: ${error.message}\n\nPlease try again with a more specific request or use one of the standard commands (try /rocket-mail help).`);
 
-            await modify.getCreator().finish(errorMessage);
+            await read.getNotifier().notifyUser(sender, errorMessage.getMessage());
         }
     }
 }
