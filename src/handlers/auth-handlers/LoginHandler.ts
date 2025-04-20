@@ -4,6 +4,8 @@ import {
     IPersistence,
     IRead,
 } from '@rocket.chat/apps-engine/definition/accessors';
+import { IRoom } from '@rocket.chat/apps-engine/definition/rooms';
+import { IUser } from '@rocket.chat/apps-engine/definition/users';
 import {
     ISlashCommand,
     SlashCommandContext,
@@ -31,12 +33,21 @@ export class LoginCommand implements ISlashCommand {
         const sender = context.getSender();
         const room = context.getRoom();
 
+        const appUser = await read.getUserReader().getAppUser() as IUser;
+
+
         // Create message builder
+        // const messageBuilder = modify
+        //     .getCreator()
+        //     .startMessage()
+        //     .setSender(sender)
+        //     .setRoom(room);
         const messageBuilder = modify
             .getCreator()
             .startMessage()
-            .setSender(sender)
-            .setRoom(room);
+            .setSender(appUser)  // Use app bot user instead of sender
+            .setRoom(room)
+            .setGroupable(false);
 
         try {
             // Get email settings to determine provider
@@ -58,29 +69,33 @@ export class LoginCommand implements ISlashCommand {
             if (isAuthenticated) {
                 const userInfo = await oauthService.getUserInfo(sender.id);
                 messageBuilder.setText(`✅ You are already logged in as ${userInfo.email}. If you want to logout, use \`/rocket-mail logout\`.`);
-                await modify.getCreator().finish(messageBuilder);
+                return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
+                // await modify.getCreator().finish(messageBuilder);
                 return;
             }
 
             // Handle provider-specific login
             switch (settings.provider) {
                 case EmailProviders.GMAIL:
-                    await this.handleGmailLogin(oauthService, sender.id, messageBuilder, modify);
+                    await this.handleGmailLogin(oauthService, sender.id, messageBuilder, modify, read, sender);
                     break;
                 case EmailProviders.OUTLOOK:
                 case EmailProviders.YAHOO:
                 case EmailProviders.PROTON:
                     messageBuilder.setText(`⚠️ Authentication for ${settings.provider} is not yet implemented. Please use Gmail for now.`);
-                    await modify.getCreator().finish(messageBuilder);
+                    return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
+                    // await modify.getCreator().finish(messageBuilder);
                     break;
                 default:
                     messageBuilder.setText(`❌ Unknown email provider: ${settings.provider}`);
-                    await modify.getCreator().finish(messageBuilder);
+                    return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
+                    // await modify.getCreator().finish(messageBuilder);
             }
         } catch (error) {
             this.app.getLogger().error('Error in login command:', error);
             messageBuilder.setText(`❌ Error processing login: ${error.message}`);
-            await modify.getCreator().finish(messageBuilder);
+            return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
+            // await modify.getCreator().finish(messageBuilder);
         }
     }
 
@@ -91,7 +106,9 @@ export class LoginCommand implements ISlashCommand {
         oauthService: GoogleOAuthService,
         userId: string,
         messageBuilder: any,
-        modify: IModify
+        modify: IModify,
+        read: IRead,
+        sender: IUser
     ): Promise<void> {
         try {
             // Generate the authorization URL
@@ -99,10 +116,12 @@ export class LoginCommand implements ISlashCommand {
 
             // Send message with auth URL as a clickable link
             messageBuilder.setText(`🔐 Connect your Gmail account: [Click here to Login](${authUrl})`);
-            await modify.getCreator().finish(messageBuilder);
+            return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
+            // await modify.getCreator().finish(messageBuilder);
         } catch (error) {
             messageBuilder.setText(`❌ Error generating authentication URL: ${error.message}`);
-            await modify.getCreator().finish(messageBuilder);
+            return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
+            // await modify.getCreator().finish(messageBuilder);
         }
     }
 
@@ -111,5 +130,5 @@ export class LoginCommand implements ISlashCommand {
      * For other email providers similar methods like handleGmailLogin() can be implemented
      */
 
-    
+
 }
