@@ -4,6 +4,7 @@ import {
     IPersistence,
     IRead,
 } from '@rocket.chat/apps-engine/definition/accessors';
+import { IUser } from '@rocket.chat/apps-engine/definition/users';
 import { SlashCommandContext } from '@rocket.chat/apps-engine/definition/slashcommands';
 import { RocketMailApp } from '../../../RocketMailApp';
 import { GoogleOAuthService } from '../../email-providers/OAuth/GoogleOAuthService';
@@ -32,12 +33,14 @@ export class LogoutCommand {
         const oauthService = new GoogleOAuthService(http, persistence, read, this.app.getLogger(), settings);
         await oauthService.initialize();
 
+        const appUser = await read.getUserReader().getAppUser() as IUser;
         // Create message builder
         const messageBuilder = modify
             .getCreator()
             .startMessage()
-            .setSender(sender)
-            .setRoom(room);
+            .setSender(appUser)
+            .setRoom(room)
+            .setGroupable(false);
 
         try {
             // Attempt to revoke the token
@@ -45,14 +48,14 @@ export class LogoutCommand {
 
             if (success) {
                 messageBuilder.setText('✅ Successfully disconnected your email account.');
-                await modify.getCreator().finish(messageBuilder);
+                return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
             } else {
                 messageBuilder.setText('❌ You are not currently authenticated with an email provider.');
-                await modify.getCreator().finish(messageBuilder);
+                return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
             }
         } catch (error) {
             messageBuilder.setText(`❌ Error logging out: ${error.message}`);
-            await modify.getCreator().finish(messageBuilder);
+            return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
         }
     }
 }

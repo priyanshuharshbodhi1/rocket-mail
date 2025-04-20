@@ -1,4 +1,5 @@
 import { IModify, IPersistence, IRead } from "@rocket.chat/apps-engine/definition/accessors";
+import { IUser } from "@rocket.chat/apps-engine/definition/users";
 import { ContactService } from "../../services/ContactService";
 import { RocketMailApp } from "../../../RocketMailApp";
 
@@ -18,18 +19,19 @@ export class DeleteCommand {
         read: IRead
     ): Promise<void> {
         const [name] = args;
+        const appUser = await read.getUserReader().getAppUser() as IUser;
         const messageBuilder = modify
             .getCreator()
             .startMessage()
-            .setSender(sender)
-            .setRoom(room);
+            .setSender(appUser)
+            .setRoom(room)
+            .setGroupable(false);
 
         if (!name) {
             messageBuilder.setText(
                 "Usage: /rocket-mail delete <name>"
             );
-            await modify.getCreator().finish(messageBuilder);
-            return;
+            return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
         }
 
         try {
@@ -37,8 +39,7 @@ export class DeleteCommand {
 
             if (existingContacts.length === 0) {
                 messageBuilder.setText("No contacts found to delete.");
-                await modify.getCreator().finish(messageBuilder);
-                return;
+                return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
             }
 
             const contactIndex = existingContacts.findIndex(contact =>
@@ -47,8 +48,7 @@ export class DeleteCommand {
 
             if (contactIndex === -1) {
                 messageBuilder.setText(`Contact '${name}' not found.`);
-                await modify.getCreator().finish(messageBuilder);
-                return;
+                return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
             }
 
             existingContacts.splice(contactIndex, 1);
@@ -65,6 +65,6 @@ export class DeleteCommand {
             messageBuilder.setText(`Error deleting contact: ${error.message}`);
         }
 
-        await modify.getCreator().finish(messageBuilder);
+        return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
     }
 }

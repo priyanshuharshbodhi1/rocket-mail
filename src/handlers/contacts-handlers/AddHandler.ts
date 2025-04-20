@@ -1,4 +1,5 @@
 import { IModify, IPersistence, IRead } from "@rocket.chat/apps-engine/definition/accessors";
+import { IUser } from "@rocket.chat/apps-engine/definition/users";
 import { ContactService } from "../../services/ContactService";
 import { RocketMailApp } from "../../../RocketMailApp";
 
@@ -17,26 +18,26 @@ export class AddCommand {
         read: IRead
     ): Promise<void> {
         const [name, email] = args;
+        const appUser = await read.getUserReader().getAppUser() as IUser;
         const messageBuilder = modify
             .getCreator()
             .startMessage()
-            .setSender(sender)
-            .setRoom(room);
+            .setSender(appUser)
+            .setRoom(room)
+            .setGroupable(false);
 
         if (!name || !email) {
             messageBuilder.setText(
                 "Usage: /rocket-mail add <name> <email>"
             );
-            await modify.getCreator().finish(messageBuilder);
-            return;
+            return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
         }
 
         if (!this.contactService.validateEmail(email)) {
             messageBuilder.setText(
                 "Invalid email format. Please provide a valid email address."
             );
-            await modify.getCreator().finish(messageBuilder);
-            return;
+            return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
         }
 
         try {
@@ -75,6 +76,6 @@ export class AddCommand {
             messageBuilder.setText(`Error adding contact: ${error.message}`);
         }
 
-        await modify.getCreator().finish(messageBuilder);
+        return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
     }
 }

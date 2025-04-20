@@ -4,6 +4,7 @@ import {
     IRead,
     IPersistence,
 } from "@rocket.chat/apps-engine/definition/accessors";
+import { IUser } from "@rocket.chat/apps-engine/definition/users";
 import { getEmailSettings } from "../config/SettingsManager";
 import { RocketMailApp } from "../../RocketMailApp";
 import { EmailServiceFactory } from "../email-providers/EmailServiceFactory";
@@ -21,18 +22,20 @@ export class ReportCommand {
         http: IHttp,
         persistence: IPersistence
     ): Promise<void> {
+
+        const appUser = await read.getUserReader().getAppUser() as IUser;
         const messageBuilder = modify
             .getCreator()
             .startMessage()
-            .setSender(sender)
-            .setRoom(room);
+            .setSender(appUser)
+            .setRoom(room)
+            .setGroupable(false);
 
         if (args.length === 0) {
             messageBuilder.setText(
                 "Usage: /rocket-mail report <number_of_days>"
             );
-            await modify.getCreator().finish(messageBuilder);
-            return;
+            return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
         }
 
         // Parse number of days
@@ -41,8 +44,7 @@ export class ReportCommand {
             messageBuilder.setText(
                 "❌ Please provide a valid positive number of days."
             );
-            await modify.getCreator().finish(messageBuilder);
-            return;
+            return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
         }
 
         // Generate date range
@@ -55,7 +57,7 @@ export class ReportCommand {
         const endDateStr = formatDate(endDate);
 
         messageBuilder.setText(`📊 Generating email report for the last ${numDays} days (${startDateStr} to ${endDateStr}). Please wait...`);
-        await modify.getCreator().finish(messageBuilder);
+        await read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
 
         try {
             const settings = await getEmailSettings(
@@ -141,14 +143,16 @@ export class ReportCommand {
                 }
 
                 // Send the report
+                const appUser = await read.getUserReader().getAppUser() as IUser;
                 const resultMessageBuilder = modify
                     .getCreator()
                     .startMessage()
-                    .setSender(sender)
-                    .setRoom(room);
+                    .setSender(appUser)
+                    .setRoom(room)
+                    .setGroupable(false);
 
                 resultMessageBuilder.setText(report);
-                await modify.getCreator().finish(resultMessageBuilder);
+                return read.getNotifier().notifyUser(sender, resultMessageBuilder.getMessage());
             } catch (error) {
                 // Check if this is an authentication error
                 if (error.message && error.message.includes("authenticate")) {
@@ -159,7 +163,7 @@ export class ReportCommand {
                         .setRoom(room);
 
                     authErrorMessage.setText(`🔒 ${error.message}`);
-                    await modify.getCreator().finish(authErrorMessage);
+                    return read.getNotifier().notifyUser(sender, authErrorMessage.getMessage());
                 } else {
                     throw error;
                 }
@@ -174,7 +178,7 @@ export class ReportCommand {
                 .setRoom(room);
 
             errorMessage.setText(`❌ Error generating email report: ${error.message}`);
-            await modify.getCreator().finish(errorMessage);
+            return read.getNotifier().notifyUser(sender, errorMessage.getMessage());
         }
     }
 
