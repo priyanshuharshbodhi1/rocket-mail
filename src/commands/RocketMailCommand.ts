@@ -43,7 +43,7 @@ export class RocketMailCommand implements ISlashCommand {
         const room = context.getRoom();
 
         if (!subcommand) {
-            await new HelpCommand().execute(sender, room, modify);
+            await new HelpCommand().execute(sender, room, modify, read);
             return;
         }
 
@@ -69,7 +69,7 @@ export class RocketMailCommand implements ISlashCommand {
                 );
                 break;
             case 'help':
-                await new HelpCommand().execute(sender, room, modify);
+                await new HelpCommand().execute(sender, room, modify, read);
                 break;
             case 'login':
                 await new LoginCommand(this.app).executor(

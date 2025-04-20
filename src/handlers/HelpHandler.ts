@@ -1,7 +1,9 @@
-import { IModify } from '@rocket.chat/apps-engine/definition/accessors';
+import { IModify, IRead } from '@rocket.chat/apps-engine/definition/accessors';
+import { IRoom } from '@rocket.chat/apps-engine/definition/rooms';
+import { IUser } from '@rocket.chat/apps-engine/definition/users';
 
 export class HelpCommand {
-    public async execute(sender, room, modify: IModify): Promise<void> {
+    public async execute(sender: IUser, room: IRoom, modify: IModify, read: IRead): Promise<void> {
         const helpText = `
             **Rocket.Mail Commands:**
 
@@ -28,13 +30,21 @@ export class HelpCommand {
             3. \`/rocket-mail list\` - Show all your saved contacts
             `;
 
+        // Get app user to send notification as the app bot
+        const appUser = await read.getUserReader().getAppUser() as IUser;
+
+        // Create message builder for notification
         const messageBuilder = modify
             .getCreator()
             .startMessage()
-            .setSender(sender)
+            .setSender(appUser)  // Use app bot user instead of sender
             .setRoom(room)
-            .setText(helpText);
+            .setText(helpText)
+            .setGroupable(false);
 
-        await modify.getCreator().finish(messageBuilder);
+        // Send as notification instead of regular message
+        return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
+
+        // await modify.getCreator().finish(messageBuilder);
     }
 }
