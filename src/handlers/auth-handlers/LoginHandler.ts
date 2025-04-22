@@ -10,6 +10,8 @@ import {
     ISlashCommand,
     SlashCommandContext,
 } from '@rocket.chat/apps-engine/definition/slashcommands';
+import { BlockBuilder } from '@rocket.chat/apps-engine/definition/uikit';
+// import { IUIKitBlockInteraction } from '@rocket.chat/apps-engine/definition/uikit/UIKitInteractionTypes';
 import { RocketMailApp } from '../../../RocketMailApp';
 import { GoogleOAuthService } from '../../email-providers/OAuth/GoogleOAuthService';
 import { getEmailSettings } from '../../config/SettingsManager';
@@ -38,7 +40,7 @@ export class LoginCommand implements ISlashCommand {
         const messageBuilder = modify
             .getCreator()
             .startMessage()
-            .setSender(appUser)  // Use app bot user instead of sender
+            .setSender(appUser)
             .setRoom(room)
             .setGroupable(false);
 
@@ -102,8 +104,27 @@ export class LoginCommand implements ISlashCommand {
             // Generate the authorization URL
             const authUrl = await oauthService.getAuthorizationUrl(userId);
 
+            // Create a UI block with a button
+            const block = modify.getCreator().getBlockBuilder();
+
+            block.addSectionBlock({
+                text: block.newMarkdownTextObject('🔐 Connect your Gmail account'),
+            });
+            block.addActionsBlock({
+                elements: [
+                    block.newButtonElement({
+                        actionId: 'gmail_login_action',
+                        text: block.newPlainTextObject('Gmail Login'),
+                        url: authUrl,
+                    }),
+                ],
+            });
+
+
             // Send message with auth URL as a clickable link
-            messageBuilder.setText(`🔐 Connect your Gmail account: [Click here to Login](${authUrl})`);
+            // messageBuilder.setText(`🔐 Connect your Gmail account: [Click here to Login](${authUrl})`);
+
+            messageBuilder.setBlocks(block.getBlocks());
             return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
         } catch (error) {
             messageBuilder.setText(`❌ Error generating authentication URL: ${error.message}`);
