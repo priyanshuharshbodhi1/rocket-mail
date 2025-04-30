@@ -25,7 +25,6 @@ export class ExecuteBlockActionHandler{
             return this.context.getInteractionResponder().errorResponse();
         }
 
-        // Handle logout button
         if (actionId === 'gmail_logout_action') {
             // Initialize OAuth service (mimic LogoutHandler logic)
             const settings = {
