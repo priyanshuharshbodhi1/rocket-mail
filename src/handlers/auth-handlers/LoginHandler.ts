@@ -3,24 +3,24 @@ import {
     IModify,
     IPersistence,
     IRead,
-} from '@rocket.chat/apps-engine/definition/accessors';
-import { IRoom } from '@rocket.chat/apps-engine/definition/rooms';
-import { IUser } from '@rocket.chat/apps-engine/definition/users';
+} from "@rocket.chat/apps-engine/definition/accessors";
+import { IRoom } from "@rocket.chat/apps-engine/definition/rooms";
+import { IUser } from "@rocket.chat/apps-engine/definition/users";
 import {
     ISlashCommand,
     SlashCommandContext,
-} from '@rocket.chat/apps-engine/definition/slashcommands';
-import { BlockBuilder } from '@rocket.chat/apps-engine/definition/uikit';
-// import { IUIKitBlockInteraction } from '@rocket.chat/apps-engine/definition/uikit/UIKitInteractionTypes';
-import { RocketMailApp } from '../../../RocketMailApp';
-import { GoogleOAuthService } from '../../email-providers/OAuth/GoogleOAuthService';
-import { getEmailSettings } from '../../config/SettingsManager';
-import { EmailProviders } from '../../types/enums/EmailProviders';
+} from "@rocket.chat/apps-engine/definition/slashcommands";
+import { ButtonStyle } from '@rocket.chat/apps-engine/definition/uikit';
+import { BlockBuilder } from "@rocket.chat/apps-engine/definition/uikit";
+import { RocketMailApp } from "../../../RocketMailApp";
+import { GoogleOAuthService } from "../../email-providers/OAuth/GoogleOAuthService";
+import { getEmailSettings } from "../../config/SettingsManager";
+import { EmailProviders } from "../../types/enums/EmailProviders";
 
 export class LoginCommand implements ISlashCommand {
-    public command = 'login';
-    public i18nDescription = 'Login to your email provider';
-    public i18nParamsExample = '';
+    public command = "login";
+    public i18nDescription = "Login to your email provider";
+    public i18nParamsExample = "";
     public providesPreview = false;
 
     constructor(private readonly app: RocketMailApp) {}
@@ -35,7 +35,7 @@ export class LoginCommand implements ISlashCommand {
         const sender = context.getSender();
         const room = context.getRoom();
 
-        const appUser = await read.getUserReader().getAppUser() as IUser;
+        const appUser = (await read.getUserReader().getAppUser()) as IUser;
 
         const messageBuilder = modify
             .getCreator()
@@ -46,46 +46,80 @@ export class LoginCommand implements ISlashCommand {
 
         try {
             // Get email settings to determine provider
-            const settings = await getEmailSettings(read.getEnvironmentReader().getSettings());
+            const settings = await getEmailSettings(
+                read.getEnvironmentReader().getSettings()
+            );
 
             // Initialize OAuth service
             const oauthSettings = {
                 get: async (key: string) => {
-                    const settingsReader = read.getEnvironmentReader().getSettings();
-                    return await settingsReader.getValueById(key) as string;
-                }
+                    const settingsReader = read
+                        .getEnvironmentReader()
+                        .getSettings();
+                    return (await settingsReader.getValueById(key)) as string;
+                },
             };
 
-            const oauthService = new GoogleOAuthService(http, persistence, read, this.app.getLogger(), oauthSettings);
+            const oauthService = new GoogleOAuthService(
+                http,
+                persistence,
+                read,
+                this.app.getLogger(),
+                oauthSettings
+            );
             await oauthService.initialize();
 
             // Check if user is already authenticated
-            const isAuthenticated = await oauthService.isAuthenticated(sender.id);
+            const isAuthenticated = await oauthService.isAuthenticated(
+                sender.id
+            );
             if (isAuthenticated) {
                 const userInfo = await oauthService.getUserInfo(sender.id);
-                messageBuilder.setText(`✅ You are already logged in as ${userInfo.email}. If you want to logout, use \`/rocket-mail logout\`.`);
-                return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
+                messageBuilder.setText(
+                    `✅ You are already logged in as ${userInfo.email}. If you want to logout, use \`/rocket-mail logout\`.`
+                );
+                return read
+                    .getNotifier()
+                    .notifyUser(sender, messageBuilder.getMessage());
             }
 
             // Handle provider-specific login
             switch (settings.provider) {
                 case EmailProviders.GMAIL:
-                    await this.handleGmailLogin(oauthService, sender.id, messageBuilder, modify, read, sender);
+                    await this.handleGmailLogin(
+                        oauthService,
+                        sender.id,
+                        messageBuilder,
+                        modify,
+                        read,
+                        sender
+                    );
                     break;
                 case EmailProviders.OUTLOOK:
                 case EmailProviders.YAHOO:
                 case EmailProviders.PROTON:
-                    messageBuilder.setText(`⚠️ Authentication for ${settings.provider} is not yet implemented. Please use Gmail for now.`);
-                    return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
-                    break;
+                    messageBuilder.setText(
+                        `⚠️ Authentication for ${settings.provider} is not yet implemented. Please use Gmail for now.`
+                    );
+                    return read
+                        .getNotifier()
+                        .notifyUser(sender, messageBuilder.getMessage());
                 default:
-                    messageBuilder.setText(`❌ Unknown email provider: ${settings.provider}`);
-                    return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
+                    messageBuilder.setText(
+                        `⚠️ Authentication for ${settings.provider} is not yet implemented. Please use Gmail for now.`
+                    );
+                    return read
+                        .getNotifier()
+                        .notifyUser(sender, messageBuilder.getMessage());
             }
         } catch (error) {
-            this.app.getLogger().error('Error in login command:', error);
-            messageBuilder.setText(`❌ Error processing login: ${error.message}`);
-            return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
+            this.app.getLogger().error("Error in login command:", error);
+            messageBuilder.setText(
+                `❌ Error processing login: ${error.message}`
+            );
+            return read
+                .getNotifier()
+                .notifyUser(sender, messageBuilder.getMessage());
         }
     }
 
@@ -108,34 +142,42 @@ export class LoginCommand implements ISlashCommand {
             const block = modify.getCreator().getBlockBuilder();
 
             block.addSectionBlock({
-                text: block.newMarkdownTextObject('🔐 Connect your Gmail account'),
+                text: block.newMarkdownTextObject(
+                    "🔐 Login to your Gmail account"
+                ),
             });
             block.addActionsBlock({
                 elements: [
                     block.newButtonElement({
-                        actionId: 'gmail_login_action',
-                        text: block.newPlainTextObject('Gmail Login'),
+                        actionId: "gmail_login_action",
+                        text: block.newPlainTextObject("Gmail Login"),
                         url: authUrl,
+                        style: ButtonStyle.PRIMARY,
                     }),
                 ],
             });
 
-
             // Send message with auth URL as a clickable link
-            // messageBuilder.setText(`🔐 Connect your Gmail account: [Click here to Login](${authUrl})`);
+            // messageBuilder.setText(`🔐 Login to your Gmail account: [Click here to Login](${authUrl})`);
 
             messageBuilder.setBlocks(block.getBlocks());
-            return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
+
+            return read
+                .getNotifier()
+                .notifyUser(sender, messageBuilder.getMessage());
+
         } catch (error) {
-            messageBuilder.setText(`❌ Error generating authentication URL: ${error.message}`);
-            return read.getNotifier().notifyUser(sender, messageBuilder.getMessage());
+            messageBuilder.setText(
+                `❌ Error generating authentication URL: ${error.message}`
+            );
+            return read
+                .getNotifier()
+                .notifyUser(sender, messageBuilder.getMessage());
         }
     }
-
 
     /**
      * For other email providers similar methods like handleGmailLogin() can be implemented
      */
-
 
 }
